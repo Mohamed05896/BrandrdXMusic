@@ -14,9 +14,9 @@ BODA_SIGNATURE = "➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ"
 
 random_photo = [
     "https://i.ibb.co/C3Tn6qgt/pexels-dsnsyj-1139541.jpg",
-    "https://telegra.ph/file/3ef2cc0ad2bc548bafb30.jpg",
-    "https://telegra.ph/file/a7d663cd2de689b811729.jpg",
-    "https://telegra.ph/file/6f19dc23847f5b005e922.jpg",
+    "https://i.ibb.co/MDCHLs5p/premium-photo-1669748157617-a3a83cc8ea23.jpg",
+    "https://i.ibb.co/8QkPT67/bg2.jpg",
+    "https://i.ibb.co/Pv3x0zDC/pexels-trupert-1032650.jpg",
     "https://telegra.ph/file/2973150dd62fd27a3a6ba.jpg",
 ]
 
