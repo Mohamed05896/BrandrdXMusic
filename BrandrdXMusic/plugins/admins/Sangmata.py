@@ -11,17 +11,17 @@ from BrandrdXMusic.core.userbot import assistants
 @app.on_message(filters.command("sg"))
 async def sg(client: Client, message: Message):
     if len(message.text.split()) < 1 and not message.reply_to_message:
-        return await message.reply("sg username/id/reply")
+        return await message.reply("أرسل الأمر + (يوزر/أيدي) أو بالرد على الشخص ✨")
     if message.reply_to_message:
         args = message.reply_to_message.from_user.id
     else:
         args = message.text.split()[1]
-    lol = await message.reply("<code>Processing...</code>")
+    lol = await message.reply("<code>جاري المعالجة... ⏳</code>")
     if args:
         try:
             user = await client.get_users(f"{args}")
         except Exception:
-            return await lol.edit("<code>Please specify a valid user!</code>")
+            return await lol.edit("<code>يرجى تحديد مستخدم صالح! ✨</code>")
     bo = ["sangmata_bot", "sangmata_beta_bot"]
     sg = random.choice(bo)
     if 1 in assistants:
@@ -38,7 +38,7 @@ async def sg(client: Client, message: Message):
         if stalk.text == None:
             continue
         if not stalk:
-            await message.reply("botnya ngambek")
+            await message.reply("بوت السجل لا يستجيب حالياً ✨")
         elif stalk:
             await message.reply(f"{stalk.text}")
             break  
@@ -50,4 +50,3 @@ async def sg(client: Client, message: Message):
         pass
     
     await lol.delete()
-    
