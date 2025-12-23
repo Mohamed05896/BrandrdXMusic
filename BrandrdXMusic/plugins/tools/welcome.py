@@ -86,15 +86,15 @@ async def greet_group(_, member: ChatMemberUpdated):
             member.chat.id,
             photo=welcomeimg,
             caption=f"""
-𝗪𝗲𝗹𝗰𝗼𝗺𝗲 𝗧𝗼 {member.chat.title}
+أهلاً بك في {member.chat.title} ✨
 ➖➖➖➖➖➖➖➖➖➖➖
-๏ 𝗡𝗔𝗠𝗘 ➠ {user.mention}
-๏ 𝗜𝗗 ➠ {user.id}
-๏ 𝐔𝐒𝐄𝐑𝐍𝐀𝐌𝐄 ➠ @{user.username}
-๏ 𝐌𝐀𝐃𝐄 𝐁𝐘 ➠ [𝗕𝗥𝗔𝗡𝗗𝗘𝗗 𓆩🇽𓆪 𝗞𝗜𝗡𝗚 📿](https://t.me/BRANDEDKING8)
+๏ الاسم ➠ {user.mention}
+๏ الأيدي ➠ {user.id}
+๏ اليوزر ➠ @{user.username}
+๏ المطور ➠ [𝐒𝐎𝐋𝐎 🔱](https://t.me/S_G0C7)
 ➖➖➖➖➖➖➖➖➖➖➖
 """,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(f"⦿ ᴀᴅᴅ ᴍᴇ ⦿", url=f"https://t.me/Sustumm_music_bot?startgroup=true")]])
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(f"⦿ أضفني لمجموعتك ⦿", url=f"https://t.me/{app.username}?startgroup=true")]])
         )
     except Exception as e:
         LOGGER.error(e)
@@ -109,10 +109,10 @@ async def bot_wel(_, message):
     for u in message.new_chat_members:
         if u.id == app.me.id:
             await app.send_message(LOG_CHANNEL_ID, f"""
-NEW GROUP
+مجموعة جديدة ✨
 ➖➖➖➖➖➖➖➖➖➖➖
-𝗡𝗔𝗠𝗘: {message.chat.title}
-𝗜𝗗: {message.chat.id}
-𝐔𝐒𝐄𝐑𝐍𝐀𝐌𝐄: @{message.chat.username}
+الاسم: {message.chat.title}
+الأيدي: {message.chat.id}
+اليوزر: @{message.chat.username}
 ➖➖➖➖➖➖➖➖➖➖➖
 """)
