@@ -73,10 +73,10 @@ def aq_markup(_, chat_id):
         ],
         [
             InlineKeyboardButton(
-                text="⛦ ᴏᴡɴᴇʀ ⛦", url=f"https://t.me/BRANDEDKING8"
+                text="⛦ الـمـالـك ⛦", url="https://t.me/S_G0C7"
             ),
             InlineKeyboardButton(
-                text="🥀 ꜱᴜᴘᴘᴏʀᴛ 🥀", url=f"https://t.me/BRANDED_WORLD"
+                text="🥀 الـدعـم 🥀", url="https://t.me/music0587"
             ),
         ],
         [InlineKeyboardButton(text=_["CLOSE_BUTTON"], callback_data="close")],
@@ -84,9 +84,7 @@ def aq_markup(_, chat_id):
     return buttons
 
 
-
 def queuemarkup(_, vidid, chat_id):
-
     buttons = [
         [
             InlineKeyboardButton(
@@ -96,24 +94,32 @@ def queuemarkup(_, vidid, chat_id):
         ],
         [
             InlineKeyboardButton(
-                text="ᴘᴀᴜsᴇ",
+                text="إيـقـاف مـؤقـت",
                 callback_data=f"ADMIN Pause|{chat_id}",
             ),
-            InlineKeyboardButton(text="sᴛᴏᴘ", callback_data=f"ADMIN Stop|{chat_id}"),
-            InlineKeyboardButton(text="sᴋɪᴘ", callback_data=f"ADMIN Skip|{chat_id}"),
-        ],
-        [
             InlineKeyboardButton(
-                text="ʀᴇsᴜᴍ", callback_data=f"ADMIN Resume|{chat_id}"
+                text="إيـقـاف",
+                callback_data=f"ADMIN Stop|{chat_id}",
             ),
             InlineKeyboardButton(
-                text="ʀᴇᴘʟᴀ", callback_data=f"ADMIN Replay|{chat_id}"
+                text="تـخـطـي",
+                callback_data=f"ADMIN Skip|{chat_id}",
             ),
         ],
         [
             InlineKeyboardButton(
-                text="๏ ᴍᴏʀᴇ ๏",
-                url="https://t.me/BRANDED_WORLD",
+                text="اسـتـئـنـاف",
+                callback_data=f"ADMIN Resume|{chat_id}",
+            ),
+            InlineKeyboardButton(
+                text="إعـادة",
+                callback_data=f"ADMIN Replay|{chat_id}",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text="๏ الـمـزيـد ๏",
+                url="https://t.me/music0587",
             ),
         ],
     ]
