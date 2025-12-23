@@ -221,7 +221,7 @@ class Call(PyTgCalls):
         if str(db[chat_id][0]["file"]) == str(file_path):
             await assistant.change_stream(chat_id, stream)
         else:
-            raise AssistantErr("Umm")
+            raise AssistantErr("حدث خطأ في المساعد")
         if str(db[chat_id][0]["file"]) == str(file_path):
             exis = (playing[0]).get("old_dur")
             if not exis:
@@ -590,7 +590,7 @@ class Call(PyTgCalls):
         return str(round(sum(pings) / len(pings), 3))
 
     async def start(self):
-        LOGGER(__name__).info("Starting PyTgCalls Client...\n")
+        LOGGER(__name__).info("جاري تشغيل عميل PyTgCalls...\n")
         if config.STRING1:
             await self.one.start()
         if config.STRING2:
