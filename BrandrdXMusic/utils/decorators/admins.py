@@ -24,7 +24,7 @@ def AdminRightsCheck(mystic):
         if await is_maintenance() is False:
             if message.from_user.id not in SUDOERS:
                 return await message.reply_text(
-                    text=f"{app.mention} ɪs ᴜɴᴅᴇʀ ᴍᴀɪɴᴛᴇɴᴀɴᴄᴇ, ᴠɪsɪᴛ <a href={SUPPORT_CHAT}>sᴜᴘᴘᴏʀᴛ ᴄʜᴀᴛ</a> ғᴏʀ ᴋɴᴏᴡɪɴɢ ᴛʜᴇ ʀᴇᴀsᴏɴ.",
+                    text=f"{app.mention} تـحت الصيانة، تـواصل مع <a href={SUPPORT_CHAT}>الدعـم</a> لمعرفة السبب.",
                     disable_web_page_preview=True,
                 )
 
@@ -38,18 +38,20 @@ def AdminRightsCheck(mystic):
             _ = get_string(language)
         except:
             _ = get_string("en")
+
         if message.sender_chat:
             upl = InlineKeyboardMarkup(
                 [
                     [
                         InlineKeyboardButton(
-                            text="ʜᴏᴡ ᴛᴏ ғɪx ?",
+                            text="كـيف أصلح؟",
                             callback_data="AnonymousAdmin",
                         ),
                     ]
                 ]
             )
             return await message.reply_text(_["general_3"], reply_markup=upl)
+
         if message.command[0][0] == "c":
             chat_id = await get_cmode(message.chat.id)
             if chat_id is None:
@@ -60,8 +62,10 @@ def AdminRightsCheck(mystic):
                 return await message.reply_text(_["cplay_4"])
         else:
             chat_id = message.chat.id
+
         if not await is_active_chat(chat_id):
             return await message.reply_text(_["general_5"])
+
         is_non_admin = await is_nonadmin_chat(message.chat.id)
         if not is_non_admin:
             if message.from_user.id not in SUDOERS:
@@ -72,35 +76,40 @@ def AdminRightsCheck(mystic):
                     if message.from_user.id not in admins:
                         if await is_skipmode(message.chat.id):
                             upvote = await get_upvote_count(chat_id)
-                            text = f"""<b>ᴀᴅᴍɪɴ ʀɪɢʜᴛs ɴᴇᴇᴅᴇᴅ</b>
+                            text = f"""<b>صلاحـيات الأدمن مطلوبة</b>
 
-ʀᴇғʀᴇsʜ ᴀᴅᴍɪɴ ᴄᴀᴄʜᴇ ᴠɪᴀ : /reload
+حدّث صلاحيات الأدمن : /reload
 
-» {upvote} ᴠᴏᴛᴇs ɴᴇᴇᴅᴇᴅ ғᴏʀ ᴘᴇʀғᴏʀᴍɪɴɢ ᴛʜɪs ᴀᴄᴛɪᴏɴ."""
+» {upvote} أصـوات مطلوبة لتنفيذ الأمر.
+"""
 
                             command = message.command[0]
                             if command[0] == "c":
                                 command = command[1:]
                             if command == "speed":
                                 return await message.reply_text(_["admin_14"])
+
                             MODE = command.title()
                             upl = InlineKeyboardMarkup(
                                 [
                                     [
                                         InlineKeyboardButton(
-                                            text="ᴠᴏᴛᴇ",
+                                            text="تـصويت",
                                             callback_data=f"ADMIN  UpVote|{chat_id}_{MODE}",
                                         ),
                                     ]
                                 ]
                             )
+
                             if chat_id not in confirmer:
                                 confirmer[chat_id] = {}
+
                             try:
                                 vidid = db[chat_id][0]["vidid"]
                                 file = db[chat_id][0]["file"]
                             except:
                                 return await message.reply_text(_["admin_14"])
+
                             senn = await message.reply_text(text, reply_markup=upl)
                             confirmer[chat_id][senn.id] = {
                                 "vidid": vidid,
@@ -120,7 +129,7 @@ def AdminActual(mystic):
         if await is_maintenance() is False:
             if message.from_user.id not in SUDOERS:
                 return await message.reply_text(
-                    text=f"{app.mention} ɪs ᴜɴᴅᴇʀ ᴍᴀɪɴᴛᴇɴᴀɴᴄᴇ, ᴠɪsɪᴛ <a href={SUPPORT_CHAT}>sᴜᴘᴘᴏʀᴛ ᴄʜᴀᴛ</a> ғᴏʀ ᴋɴᴏᴡɪɴɢ ᴛʜᴇ ʀᴇᴀsᴏɴ.",
+                    text=f"{app.mention} تـحت الصيانة، تـواصل مع <a href={SUPPORT_CHAT}>الدعـم</a> لمعرفة السبب.",
                     disable_web_page_preview=True,
                 )
 
@@ -134,18 +143,20 @@ def AdminActual(mystic):
             _ = get_string(language)
         except:
             _ = get_string("en")
+
         if message.sender_chat:
             upl = InlineKeyboardMarkup(
                 [
                     [
                         InlineKeyboardButton(
-                            text="ʜᴏᴡ ᴛᴏ ғɪx ?",
+                            text="كـيف أصلح؟",
                             callback_data="AnonymousAdmin",
                         ),
                     ]
                 ]
             )
             return await message.reply_text(_["general_3"], reply_markup=upl)
+
         if message.from_user.id not in SUDOERS:
             try:
                 member = (
@@ -155,6 +166,7 @@ def AdminActual(mystic):
                 return
             if not member.can_manage_video_chats:
                 return await message.reply(_["general_4"])
+
         return await mystic(client, message, _)
 
     return wrapper
@@ -165,16 +177,19 @@ def ActualAdminCB(mystic):
         if await is_maintenance() is False:
             if CallbackQuery.from_user.id not in SUDOERS:
                 return await CallbackQuery.answer(
-                    f"{app.mention} ɪs ᴜɴᴅᴇʀ ᴍᴀɪɴᴛᴇɴᴀɴᴄᴇ, ᴠɪsɪᴛ sᴜᴘᴘᴏʀᴛ ᴄʜᴀᴛ ғᴏʀ ᴋɴᴏᴡɪɴɢ ᴛʜᴇ ʀᴇᴀsᴏɴ.",
+                    f"{app.mention} تـحت الصيانة، تـواصل مع الدعـم لمعرفة السبب.",
                     show_alert=True,
                 )
+
         try:
             language = await get_lang(CallbackQuery.message.chat.id)
             _ = get_string(language)
         except:
             _ = get_string("en")
+
         if CallbackQuery.message.chat.type == ChatType.PRIVATE:
             return await mystic(client, CallbackQuery, _)
+
         is_non_admin = await is_nonadmin_chat(CallbackQuery.message.chat.id)
         if not is_non_admin:
             try:
@@ -186,6 +201,7 @@ def ActualAdminCB(mystic):
                 ).privileges
             except:
                 return await CallbackQuery.answer(_["general_4"], show_alert=True)
+
             if not a.can_manage_video_chats:
                 if CallbackQuery.from_user.id not in SUDOERS:
                     token = await int_to_alpha(CallbackQuery.from_user.id)
@@ -193,11 +209,11 @@ def ActualAdminCB(mystic):
                     if token not in _check:
                         try:
                             return await CallbackQuery.answer(
-                                _["general_4"],
-                                show_alert=True,
+                                _["general_4"], show_alert=True
                             )
                         except:
                             return
+
         return await mystic(client, CallbackQuery, _)
 
     return wrapper
