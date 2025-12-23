@@ -41,9 +41,11 @@ async def helper_private(
         _ = get_string(language)
         keyboard = help_pannel(_)
         
-        await update.reply_video(
-            video="https://i.ibb.co/C3Tn6qgt/pexels-dsnsyj-1139541.jpg",
-            caption=_["help_1"].format(SUPPORT_CHAT), reply_markup=keyboard)
+        await update.reply_photo(
+    photo="https://i.ibb.co/C3Tn6qgt/pexels-dsnsyj-1139541.jpg",
+    caption=_["help_1"].format(SUPPORT_CHAT),
+    reply_markup=keyboard
+)
 
 
 @app.on_message(filters.command(["help"]) & filters.group & ~BANNED_USERS)
