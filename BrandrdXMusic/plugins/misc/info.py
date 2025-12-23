@@ -17,7 +17,7 @@ random_photo = [
     "https://i.ibb.co/MDCHLs5p/premium-photo-1669748157617-a3a83cc8ea23.jpg",
     "https://i.ibb.co/8QkPT67/bg2.jpg",
     "https://i.ibb.co/Pv3x0zDC/pexels-trupert-1032650.jpg",
-    "https://telegra.ph/file/2973150dd62fd27a3a6ba.jpg",
+    "https://te.legra.ph/file/3e40a408286d4eda24191.jpg",
 ]
 
 # --------------------------------------------------------------------------------- #
