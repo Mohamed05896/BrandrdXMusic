@@ -102,7 +102,7 @@ async def check_playlist(client, message: Message, _):
         if user_command_count[user_id] > SPAM_THRESHOLD:
             # Block the user if they exceed the threshold
             hu = await message.reply_text(
-                f"**{message.from_user.mention} ᴘʟᴇᴀsᴇ ᴅᴏɴᴛ ᴅᴏ sᴘᴀᴍ, ᴀɴᴅ ᴛʀʏ ᴀɢᴀɪɴ ᴀғᴛᴇʀ 5 sᴇᴄ**"
+                f"**{message.from_user.mention} بلاش تكـرار كتيـر يا جمـيل، استـنى 5 ثـواني وجـرب تـاني**"
             )
             await asyncio.sleep(3)
             await hu.delete()
@@ -177,7 +177,7 @@ async def del_plist_msg(client, message: Message, _):
         if user_command_count[user_id] > SPAM_THRESHOLD:
             # Block the user if they exceed the threshold
             hu = await message.reply_text(
-                f"**{message.from_user.mention} ᴘʟᴇᴀsᴇ ᴅᴏɴᴛ ᴅᴏ sᴘᴀᴍ, ᴀɴᴅ ᴛʀʏ ᴀɢᴀɪɴ ᴀғᴛᴇʀ 5 sᴇᴄ**"
+                f"**{message.from_user.mention} بلاش تكـرار كتيـر يا جمـيل، استـنى 5 ثـواني وجـرب تـاني**"
             )
             await asyncio.sleep(3)
             await hu.delete()
@@ -300,7 +300,7 @@ async def play_playlist_command(client, message, _):
 async def add_playlist(client, message: Message, _):
     if len(message.command) < 2:
         return await message.reply_text(
-            "**➻ ᴘʟᴇᴀsᴇ ᴘʀᴏᴠɪᴅᴇ ᴍᴇ ᴀ sᴏɴɢ ɴᴀᴍᴇ ᴏʀ sᴏɴɢ ʟɪɴᴋ ᴏʀ ʏᴏᴜᴛᴜʙᴇ ᴘʟᴀʏʟɪsᴛ ʟɪɴᴋ ᴀғᴛᴇʀ ᴛʜᴇ ᴄᴏᴍᴍᴀɴᴅ..**\n\n**➥ ᴇxᴀᴍᴘʟᴇs:**\n\n▷ `/addplaylist Blue Eyes` (ᴘᴜᴛ ᴀ sᴘᴇᴄɪғɪᴄ sᴏɴɢ ɴᴀᴍᴇ)\n\n▷ /addplaylist [ʏᴏᴜᴛᴜʙᴇ ᴘʟᴀʏʟɪsᴛ ʟɪɴᴋ] (ᴛᴏ ᴀᴅᴅ ᴀʟʟ sᴏɴɢs ғʀᴏᴍ ᴀ ʏᴏᴜᴛᴜʙᴇ ᴘʟᴀʏʟɪsᴛ ɪɴ ʙᴏᴛ ᴘʟᴀʏʟɪsᴛ.)"
+            "**➻ يا ريـت تبـعتلي اسـم الأغـنية أو الرابـط بـعد الأمـر يا قـمر..**\n\n**➥ أمـثلة:**\n\n▷ `/addplaylist Blue Eyes` (عشـان تضـيف أغـنية محـددة)\n\n▷ /addplaylist [رابط قائمة يوتيوب](عشـان تضـيف كـل أغـاني القـائمة للبـوت.)"
         )
 
     query = message.command[1]
@@ -308,7 +308,7 @@ async def add_playlist(client, message: Message, _):
     # Check if the provided input is a YouTube playlist link
     if "youtube.com/playlist" in query:
         adding = await message.reply_text(
-            "**🎧 ᴀᴅᴅɪɴɢ sᴏɴɢs ɪɴ ᴘʟᴀʏʟɪsᴛ ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ..**"
+            "**🎧 بضيـف الأغـاني للقـائمة، ثـواني يا عـسل..**"
         )
         try:
             from pytube import Playlist, YouTube
@@ -322,7 +322,7 @@ async def add_playlist(client, message: Message, _):
 
         if not video_urls:
             return await message.reply_text(
-                "**➻ ɴᴏ sᴏɴɢs ғᴏᴜɴᴅ ɪɴ ᴛʜᴇ ᴘʟᴀʏʟɪsᴛ ʟɪɴᴋs.\n\n**➥ ᴛʀʏ ᴏᴛʜᴇʀ ᴘʟᴀʏʟɪsᴛ ʟɪɴᴋ**"
+                "**➻ مـش لاقـي أغـاني في الرابـط ده.\n\n**➥ جـرب رابـط تـاني يا غـالي**"
             )
 
         user_id = message.from_user.id
@@ -334,7 +334,7 @@ async def add_playlist(client, message: Message, _):
                 title = yt.title
                 duration = yt.length
             except Exception as e:
-                return await message.reply_text(f"ᴇʀʀᴏʀ ғᴇᴛᴄʜɪɴɢ ᴠɪᴅᴇᴏ ɪɴғᴏ: {e}")
+                return await message.reply_text(f"فيـه مشكـلة في جـلب البيـانات: {e}")
 
             plist = {
                 "videoid": video_id,
@@ -347,7 +347,7 @@ async def add_playlist(client, message: Message, _):
                 [
                     [
                         InlineKeyboardButton(
-                            "๏ ᴡᴀɴᴛ ʀᴇᴍᴏᴠᴇ ᴀɴʏ sᴏɴɢs? ๏",
+                            "๏ عـايز تـشيل أي أغـاني؟ ๏",
                             callback_data=f"open_playlist {user_id}",
                         )
                     ]
@@ -355,13 +355,13 @@ async def add_playlist(client, message: Message, _):
             )
         await adding.delete()
         return await message.reply_text(
-            text="**➻ ᴀʟʟ sᴏɴɢs ʜᴀs ʙᴇᴇɴ ᴀᴅᴅᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ ғʀᴏᴍ ʏᴏᴜʀ ʏᴏᴜᴛᴜʙᴇ ᴘʟᴀʏʟɪsᴛ ʟɪɴᴋ✅**\n\n**➥ ɪғ ʏᴏᴜ ᴡᴀɴᴛ ᴛᴏ ʀᴇᴍᴏᴠᴇ ᴀɴʏ sᴏɴɢ ᴛʜᴇɴ ᴄʟɪᴄᴋ ɢɪᴠᴇɴ ʙᴇʟᴏᴡ ʙᴜᴛᴛᴏɴ.\n\n**▷ ᴄʜᴇᴄᴋ ʙʏ » /playlist**\n\n▷ **ᴘʟᴀʏ ʙʏ » /play**",
+            text="**➻ كـل الأغـاني انضـافت خـلاص مـن القـائمة بـتاعتك ✅**\n\n**➥ لـو عـاوز تشـيل أي أغـنية دوس عـلى الـزرار تحـت.\n\n**▷ شـوفـهم مـن » /playlist**\n\n▷ **شغـلهم بـ » /play**",
             reply_markup=keyboardes,
         )
 
     if "youtube.com/@" in query:
         addin = await message.reply_text(
-            "**🎧 ᴀᴅᴅɪɴɢ sᴏɴɢs ɪɴ ᴘʟᴀʏʟɪsᴛ ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ..**"
+            "**🎧 بضيـف الأغـاني للقـائمة، ثـواني يا عـسل..**"
         )
         try:
             from pytube import YouTube
@@ -376,7 +376,7 @@ async def add_playlist(client, message: Message, _):
 
         if not video_urls:
             return await message.reply_text(
-                "**➻ ɴᴏ sᴏɴɢs ғᴏᴜɴᴅ ɪɴ ᴛʜᴇ YouTube channel.\n\n**➥ ᴛʀʏ ᴏᴛʜᴇʀ YouTube channel ʟɪɴᴋ**"
+                "**➻ مـش لاقـي أغـاني في القـناة دي.\n\n**➥ جـرب رابـط قـناة تـانية**"
             )
 
         user_id = message.from_user.id
@@ -388,7 +388,7 @@ async def add_playlist(client, message: Message, _):
                 title = yt.title
                 duration = yt.length
             except Exception as e:
-                return await message.reply_text(f"ᴇʀʀᴏʀ ғᴇᴛᴄʜɪɴɢ ᴠɪᴅᴇᴏ ɪɴғᴏ: {e}")
+                return await message.reply_text(f"فيـه مشكـلة في جـلب البيـانات: {e}")
 
             plist = {
                 "videoid": video_id,
@@ -401,7 +401,7 @@ async def add_playlist(client, message: Message, _):
                 [
                     [
                         InlineKeyboardButton(
-                            "๏ ᴡᴀɴᴛ ʀᴇᴍᴏᴠᴇ ᴀɴʏ sᴏɴɢs? ๏",
+                            "๏ عـايز تـشيل أي أغـاني؟ ๏",
                             callback_data=f"open_playlist {user_id}",
                         )
                     ]
@@ -409,7 +409,7 @@ async def add_playlist(client, message: Message, _):
             )
         await addin.delete()
         return await message.reply_text(
-            text="**➻ ᴀʟʟ sᴏɴɢs ʜᴀs ʙᴇᴇɴ ᴀᴅᴅᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ ғʀᴏᴍ ʏᴏᴜʀ ʏᴏᴜᴛᴜʙᴇ channel ʟɪɴᴋ✅**\n\n**➥ ɪғ ʏᴏᴜ ᴡᴀɴᴛ ᴛᴏ ʀᴇᴍᴏᴠᴇ ᴀɴʏ sᴏɴɢ ᴛʜᴇɴ ᴄʟɪᴄᴋ ɢɪᴠᴇɴ ʙᴇʟᴏᴡ ʙᴜᴛᴛᴏɴ.\n\n**▷ ᴄʜᴇᴄᴋ ʙʏ » /playlist**\n\n▷ **ᴘʟᴀʏ ʙʏ » /play**",
+            text="**➻ كـل الأغـاني انضـافت خـلاص مـن قـناة اليـوتيوب بـتاعتك ✅**\n\n**➥ لـو عـاوز تشـيل أي أغـنية دوس عـلى الـزرار تحـت.\n\n**▷ شـوفـهم مـن » /playlist**\n\n▷ **شغـلهم بـ » /play**",
             reply_markup=keyboardes,
         )
 
@@ -417,7 +417,7 @@ async def add_playlist(client, message: Message, _):
     if "https://youtu.be" in query:
         try:
             add = await message.reply_text(
-                "**🎧 ᴀᴅᴅɪɴɢ sᴏɴɢs ɪɴ ᴘʟᴀʏʟɪsᴛ ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ..**"
+                "**🎧 بضيـف الأغـاني للقـائمة، ثـواني يا عـسل..**"
             )
             from pytube import Playlist, YouTube
 
@@ -460,7 +460,7 @@ async def add_playlist(client, message: Message, _):
                     [
                         [
                             InlineKeyboardButton(
-                                "๏ Remove from Playlist ๏",
+                                "๏ شـيلها مـن القـائمة ๏",
                                 callback_data=f"remove_playlist {videoid}",
                             )
                         ]
@@ -469,7 +469,7 @@ async def add_playlist(client, message: Message, _):
                 await add.delete()
                 await message.reply_photo(
                     thumbnail,
-                    caption="**➻ ᴀᴅᴅᴇᴅ sᴏɴɢ ɪɴ ʏᴏᴜʀ ʙᴏᴛ ᴘʟᴀʏʟɪsᴛ✅**\n\n**➥ ᴄʜᴇᴄᴋ ʙʏ » /playlist**\n\n**➥ ᴅᴇʟᴇᴛᴇ ʙʏ » /delplaylist**\n\n**➥ ᴀɴᴅ ᴘʟᴀʏ ʙʏ » /play (ɢʀᴏᴜᴘs ᴏɴʟʏ)**",
+                    caption="**➻ الأغـنية انضـافت لقـائمتك يا سـيدي ✅**\n\n**➥ شـوفـها مـن » /playlist**\n\n**➥ احـذفـها مـن » /delplaylist**\n\n**➥ شـغـلها مـن » /play (في الجـروبات بـس)**",
                     reply_markup=keyboard,
                 )
             except Exception as e:
@@ -516,7 +516,7 @@ async def add_playlist(client, message: Message, _):
                 except KeyError:
                     pass
 
-            m = await message.reply("**🔄 ᴀᴅᴅɪɴɢ ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ... **")
+            m = await message.reply("**🔄 جـاري الإضـافة، خـليك معـايا... **")
             title, duration_min, _, _, _ = await YouTube.details(videoid, True)
             title = (title[:50]).title()
             plist = {
@@ -532,7 +532,7 @@ async def add_playlist(client, message: Message, _):
                 [
                     [
                         InlineKeyboardButton(
-                            "๏ Remove from Playlist ๏",
+                            "๏ شـيلها مـن القـائمة ๏",
                             callback_data=f"remove_playlist {videoid}",
                         )
                     ]
@@ -541,12 +541,12 @@ async def add_playlist(client, message: Message, _):
             await m.delete()
             await message.reply_photo(
                 thumbnail,
-                caption="**➻ ᴀᴅᴅᴇᴅ sᴏɴɢ ɪɴ ʏᴏᴜʀ ʙᴏᴛ ᴘʟᴀʏʟɪsᴛ✅**\n\n**➥ ᴄʜᴇᴄᴋ ʙʏ » /playlist**\n\n**➥ ᴅᴇʟᴇᴛᴇ ʙʏ » /delplaylist**\n\n**➥ ᴀɴᴅ ᴘʟᴀʏ ʙʏ » /play (ɢʀᴏᴜᴘs ᴏɴʟʏ)**",
+                caption="**➻ الأغـنية انضـافت لقـائمتك يا سـيدي ✅**\n\n**➥ شـوفـها مـن » /playlist**\n\n**➥ احـذفـها مـن » /delplaylist**\n\n**➥ شـغـلها مـن » /play (في الجـروبات بـس)**",
                 reply_markup=keyboard,
             )
 
         except KeyError:
-            return await message.reply_text("ɪɴᴠᴀʟɪᴅ ᴅᴀᴛᴀ ғᴏʀᴍᴀᴛ ʀᴇᴄᴇɪᴠᴇᴅ.")
+            return await message.reply_text("شـكل البيـانات غـلط.")
         except Exception as e:
             pass
 
@@ -584,13 +584,13 @@ async def del_plist(client, CallbackQuery, _):
         [
             [
                 InlineKeyboardButton(
-                    "๏ ʀᴇᴄᴏᴠᴇʀ ʏᴏᴜʀ sᴏɴɢ ๏", callback_data=f"recover_playlist {videoid}"
+                    "๏ رجـع أغـنيتك تـاني ๏", callback_data=f"recover_playlist {videoid}"
                 )
             ]
         ]
     )
     return await CallbackQuery.edit_message_text(
-        text="**➻ ʏᴏᴜʀ sᴏɴɢ ʜᴀs ʙᴇᴇɴ ᴅᴇʟᴇᴛᴇᴅ ғʀᴏᴍ ʏᴏᴜʀ ʙᴏᴛ ᴘʟᴀʏʟɪsᴛ**\n\n**➥ ɪғ ʏᴏᴜ ᴡᴀɴᴛ ᴛᴏ ʀᴇᴄᴏᴠᴇʀ ʏᴏᴜʀ sᴏɴɢ ɪɴ ʏᴏᴜʀ ᴘʟᴀʏʟɪsᴛ ᴛʜᴇɴ ᴄʟɪᴄᴋ ɢɪᴠᴇɴ ʙᴇʟᴏᴡ ʙᴜᴛᴛᴏɴ**",
+        text="**➻ الأغـنية اتمـسحت خـلاص مـن قـائمتك**\n\n**➥ لـو حـابب ترجـعها تـاني دوس عـلى الـزرار اللـي تحـت**",
         reply_markup=keyboards,
     )
 
@@ -639,13 +639,13 @@ async def add_playlist(client, CallbackQuery, _):
             [
                 [
                     InlineKeyboardButton(
-                        "๏ ʀᴇᴍᴏᴠᴇ ᴀɢᴀɪɴ ๏", callback_data=f"remove_playlist {videoid}"
+                        "๏ امـسحها تـاني ๏", callback_data=f"remove_playlist {videoid}"
                     )
                 ]
             ]
         )
         return await CallbackQuery.edit_message_text(
-            text="**➻ ʀᴇᴄᴏᴠᴇʀᴇᴅ sᴏɴɢ ɪɴ ʏᴏᴜʀ ᴘʟᴀʏʟɪsᴛ**\n\n**➥ Cʜᴇᴄᴋ Pʟᴀʏʟɪsᴛ ʙʏ /playlist**\n\n**➥ ᴅᴇʟᴇᴛᴇ ᴘʟᴀʏʟɪsᴛ ʙʏ » /delplaylist**\n\n**➥ ᴀɴᴅ ᴘʟᴀʏ ᴘʟᴀʏʟɪsᴛ ʙʏ » /play**",
+            text="**➻ الأغـنية رجعـت تـاني في قـائمتك**\n\n**➥ شـوف القـائمة مـن /playlist**\n\n**➥ امـسح القـائمة مـن » /delplaylist**\n\n**➥ وشـغلها مـن » /play**",
             reply_markup=keyboardss,
         )
     except:
@@ -656,7 +656,7 @@ async def add_playlist(client, CallbackQuery, _):
 @languageCB
 async def add_playlist(client, CallbackQuery, _):
     await CallbackQuery.answer(
-        "➻ ᴛᴏ ᴀᴅᴅ ᴀ sᴏɴɢ ɪɴ ʏᴏᴜʀ ᴘʟᴀʏʟɪsᴛ ᴊᴜsᴛ ᴛʏᴘᴇ /addplaylist (Here your song name)\n\n➥ ᴇxᴀᴍᴘʟᴇ » /addplaylist Blue Eyes Blue tyes.",
+        "➻ عشـان تضـيف أغـنية لقـائمتك اكـتب بـس /addplaylist (جـنبها اسـم الأغـنية)\n\n➥ مـثال » /addplaylist Blue Eyes",
         show_alert=True,
     )
 
@@ -762,7 +762,7 @@ async def del_whole_playlist(client, CallbackQuery, _):
     _playlist = await get_playlist_names(CallbackQuery.from_user.id)
     for x in _playlist:
         await CallbackQuery.answer(
-            "➻ ᴏᴋ sɪʀ ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ.\n\n➥ ᴅᴇʟᴇᴛɪɴɢ ʏᴏᴜʀ ᴘʟᴀʏʟɪsᴛ...", show_alert=True
+            "➻ حـاضر يا غـالي، ثـواني..\n\n➥ بمـسحلك القـائمة كـلها...", show_alert=True
         )
         await delete_playlist(CallbackQuery.from_user.id, x)
     return await CallbackQuery.edit_message_text(_["playlist_13"])
