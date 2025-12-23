@@ -404,18 +404,18 @@ async def set_playmode(chat_id: int, mode: str):
         {"chat_id": chat_id}, {"$set": {"mode": mode}}, upsert=True
     )
 
-# --- تم تعديل هذه الدالة لتصبح العربية هي اللغة الافتراضية ---
+
 async def get_lang(chat_id: int) -> str:
     mode = langm.get(chat_id)
     if not mode:
         lang = await langdb.find_one({"chat_id": chat_id})
         if not lang:
-            langm[chat_id] = "ar"
-            return "ar"
+            langm[chat_id] = "en"
+            return "en"
         langm[chat_id] = lang["lang"]
         return lang["lang"]
     return mode
-# ---------------------------------------------------------
+
 
 async def set_lang(chat_id: int, lang: str):
     langm[chat_id] = lang
@@ -868,6 +868,72 @@ async def cleanmode_on(chat_id: int):
         cleanmode.remove(chat_id)
     except:
         pass
+
+
+# Audio Video Limit
+
+"""
+from pytgcalls.types import AudioQuality, VideoQuality
+
+
+async def save_audio_bitrate(chat_id: int, bitrate: str):
+    audio[chat_id] = bitrate
+
+
+async def save_video_bitrate(chat_id: int, bitrate: str):
+    video[chat_id] = bitrate
+
+
+async def get_aud_bit_name(chat_id: int) -> str:
+    mode = audio.get(chat_id)
+    if not mode:
+        return "HIGH"
+    return mode
+
+
+async def get_vid_bit_name(chat_id: int) -> str:
+    mode = video.get(chat_id)
+    if not mode:
+        if PRIVATE_BOT_MODE == str(True):
+            return "HD_720p"
+        else:
+            return "HD_720p"
+    return mode
+
+
+async def get_audio_bitrate(chat_id: int) -> str:
+    mode = audio.get(chat_id)
+    if not mode:
+        return AudioQuality.STUDIO
+    if str(mode) == "STUDIO":
+        return AudioQuality.STUDIO
+    elif str(mode) == "HIGH":
+        return AudioQuality.HIGH
+    elif str(mode) == "MEDIUM":
+        return AudioQuality.MEDIUM
+    elif str(mode) == "LOW":
+        return AudioQuality.LOW
+
+
+async def get_video_bitrate(chat_id: int) -> str:
+    mode = video.get(chat_id)
+    if not mode:
+        if PRIVATE_BOT_MODE == str(True):
+            return VideoQuality.FHD_1080p
+        else:
+            return VideoQuality.HD_720p
+    if str(mode) == "UHD_4K":
+        return VideoQuality.UHD_4K
+    elif str(mode) == "QHD_2K":
+        return VideoQuality.QHD_2K
+    elif str(mode) == "FHD_1080p":
+        return VideoQuality.FHD_1080p
+    elif str(mode) == "HD_720p":
+        return VideoQuality.HD_720p
+    elif str(mode) == "SD_480p":
+        return VideoQuality.SD_480p
+    elif str(mode) == "SD_360p":
+        return VideoQuality.SD_360p"""
 
 
 async def is_served_user_clone(user_id: int) -> bool:
