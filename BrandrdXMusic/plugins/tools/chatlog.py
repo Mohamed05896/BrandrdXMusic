@@ -1,29 +1,25 @@
 import random
-from pyrogram import Client
-from pyrogram.types import Message
-from pyrogram import filters
+from pyrogram import Client, filters
 from pyrogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    InputMediaPhoto,
-    InputMediaVideo,
     Message,
 )
 from config import LOGGER_ID as LOG_GROUP_ID
 from BrandrdXMusic import app
-from BrandrdXMusic.core.userbot import Userbot
-from BrandrdXMusic.utils.database import delete_served_chat
+from BrandrdXMusic.core.userbot import assistants
 from BrandrdXMusic.utils.database import get_assistant
 
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ
 
+# الـروابـط الـجـديـدة الـلـي بـعـتـهـا يـا بـودا ⚡️
 photo = [
-    "https://te.legra.ph/file/758a5cf4598f061f25963.jpg",
-    "https://te.legra.ph/file/30a1dc870bd1a485e3567.jpg",
-    "https://te.legra.ph/file/d585beb2a6b3f553299d2.jpg",
-    "https://te.legra.ph/file/7df9e128dd261de2afd6b.jpg",
-    "https://te.legra.ph/file/f60ebb75ad6f2786efa4e.jpg",
+    "https://files.catbox.moe/4st2cp.jpg",
+    "https://files.catbox.moe/r1lc37.jpg",
+    "https://files.catbox.moe/efzuds.jpg",
+    "https://files.catbox.moe/ht74e3.jpg",
+    "https://files.catbox.moe/qujhu1.jpg",
 ]
-
 
 @app.on_message(filters.new_chat_members, group=2)
 async def join_watcher(_, message):
@@ -34,16 +30,20 @@ async def join_watcher(_, message):
             if members.id == app.id:
                 count = await app.get_chat_members_count(chat.id)
                 username = (
-                    message.chat.username if message.chat.username else "𝐏ʀɪᴠᴀᴛᴇ 𝐆ʀᴏᴜᴘ"
+                    f"@{message.chat.username}" if message.chat.username else "مجموعة خاصة 🔐"
                 )
+                
+                # رسـالـة مـدلعـة بـالـعـربـي
                 msg = (
-                    f"**📝𝐌ᴜsɪᴄ 𝐁ᴏᴛ 𝐀ᴅᴅᴇᴅ 𝐈ɴ 𝐀 #𝐍ᴇᴡ_𝐆ʀᴏᴜᴘ**\n\n"
-                    f"**📌𝐂ʜᴀᴛ 𝐍ᴀᴍᴇ:** {message.chat.title}\n"
-                    f"**🍂𝐂ʜᴀᴛ 𝐈ᴅ:** {message.chat.id}\n"
-                    f"**🔐𝐂ʜᴀᴛ 𝐔sᴇʀɴᴀᴍᴇ:** @{username}\n"
-                    f"**📈𝐆ʀᴏᴜᴘ 𝐌ᴇᴍʙᴇʀs:** {count}\n"
-                    f"**🤔𝐀ᴅᴅᴇᴅ 𝐁ʏ:** {message.from_user.mention}"
+                    f"**✅ تـم إضـافـة الـبـوت لـمـجـمـوعـة جـديـدة**\n\n"
+                    f"**✧ اسـم الـمـجـمـوعـة :** {message.chat.title}\n"
+                    f"**✧ آيـدي الـمـجـمـوعـة :** `{message.chat.id}`\n"
+                    f"**✧ يـوزر الـمـجـمـوعـة :** {username}\n"
+                    f"**✧ عـدد الأعـضـاء :** {count}\n"
+                    f"**✧ أُضـيـف بـواسـطـة :** {message.from_user.mention}\n"
+                    f"\n**➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ**"
                 )
+                
                 await app.send_photo(
                     LOG_GROUP_ID,
                     photo=random.choice(photo),
@@ -52,13 +52,18 @@ async def join_watcher(_, message):
                         [
                             [
                                 InlineKeyboardButton(
-                                    f"😍𝐀ᴅᴅᴇᴅ 𝐁ʏ😍",
+                                    "👤 الـمـطـور الـذي أضـافـنـي",
                                     url=f"tg://openmessage?user_id={message.from_user.id}",
                                 )
                             ]
                         ]
                     ),
                 )
-                await userbot.join_chat(f"{username}")
+                
+                if message.chat.username:
+                    await userbot.join_chat(message.chat.username)
+                    
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error in join_watcher: {e}")
+
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ
