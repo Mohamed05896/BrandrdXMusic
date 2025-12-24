@@ -27,7 +27,7 @@ from strings import get_string
 @LanguageStart
 async def start_pm(client, message: Message, _):
     await add_served_user(message.from_user.id)
-    await message.react("❤")
+    await message.react("💖")
     if len(message.text.split()) > 1:
         name = message.text.split(None, 1)[1]
         if name[0:4] == "help":
@@ -117,7 +117,13 @@ async def start_pm(client, message: Message, _):
 
             await lols.edit_text("**⚡جـاري التـشـغـيـل..**")
             await lols.edit_text("**⚡جـاري التـشـغـيـل....**")
-            m = await message.reply_sticker("CAACAgUAAxkBAAEQI1BlTLmx7PtOO3aPNshEU2gCy7iAFgACNQUAApqMuVeA6eJ50VbvmDME")
+            
+            # --- التعديل هنا ---
+            # تم إرسال الاستيكر والرسالة ولن يتم حذفهما
+            await message.reply_sticker("CAACAgUAAxkBAAEQI1BlTLmx7PtOO3aPNshEU2gCy7iAFgACNQUAApqMuVeA6eJ50VbvmDME")
+            await message.reply_text("لرؤية الأوامر اضغط /help 🥀")
+            # -------------------
+
             if message.chat.photo:
 
                 userss_photo = await app.download_media(
@@ -131,8 +137,10 @@ async def start_pm(client, message: Message, _):
 
         except AttributeError:
             chat_photo = "assets/nodp.png"
+        
         await lols.delete()
-        await m.delete()
+        # تم حذف سطر await m.delete() لضمان بقاء الاستيكر
+        
         await message.reply_photo(
             photo=chat_photo,
             caption=_["start_2"].format(message.from_user.mention, app.mention),
