@@ -2,6 +2,7 @@ import math
 from pyrogram.types import InlineKeyboardButton
 from BrandrdXMusic.utils.formatters import time_to_seconds
 
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ
 
 # Track Markup
 def track_markup(_, videoid, user_id, channel, fplay):
@@ -28,7 +29,7 @@ def track_markup(_, videoid, user_id, channel, fplay):
 # Stream Timer Markup
 def stream_markup_timer(_, vidid, chat_id, played, dur):
     played_sec = time_to_seconds(played)
-    duration_sec = time_to_seconds(dur) or 1
+    duration_sec = time_to_seconds(dur) or 1  # avoid ZeroDivisionError
     percentage = (played_sec / duration_sec) * 100
     umm = math.floor(percentage)
 
@@ -56,8 +57,7 @@ def stream_markup_timer(_, vidid, chat_id, played, dur):
     return [
         [
             InlineKeyboardButton(
-                text=f"{played} {bar} {dur}",
-                callback_data="GetTimer"
+                text=f"{played} {bar} {dur}", callback_data="GetTimer"
             )
         ],
         [
@@ -68,21 +68,13 @@ def stream_markup_timer(_, vidid, chat_id, played, dur):
             InlineKeyboardButton(text="▢", callback_data=f"ADMIN Stop|{chat_id}"),
         ],
         [
-            InlineKeyboardButton(
-                text="❖ الـمـالـك ❖",
-                url="https://t.me/S_G0C7"
-            ),
-            InlineKeyboardButton(
-                text="❖ الـدعـم ❖",
-                url="https://t.me/music0587"
-            ),
+            InlineKeyboardButton(text="❖ الـمـالـك ❖", url="https://t.me/S_G0C7"),
+            InlineKeyboardButton(text="❖ الـدعـم ❖", url="https://t.me/music0587"),
         ],
         [
-            InlineKeyboardButton(
-                text=_["CLOSE_BUTTON"],
-                callback_data="close"
-            )
+            InlineKeyboardButton(text="➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ", url="https://t.me/BRANDRD_BOT")
         ],
+        [InlineKeyboardButton(text=_["CLOSE_BUTTON"], callback_data="close")],
     ]
 
 
@@ -97,21 +89,31 @@ def stream_markup(_, videoid, chat_id):
             InlineKeyboardButton(text="▢", callback_data=f"ADMIN Stop|{chat_id}"),
         ],
         [
-            InlineKeyboardButton(
-                text="❖ الـمـالـك ❖",
-                url="https://t.me/S_G0C7"
-            ),
-            InlineKeyboardButton(
-                text="❖ الـدعـم ❖",
-                url="https://t.me/music0587"
-            ),
+            InlineKeyboardButton(text="❖ الـمـالـك ❖", url="https://t.me/S_G0C7"),
+            InlineKeyboardButton(text="❖ الـدعـم ❖", url="https://t.me/music0587"),
         ],
         [
-            InlineKeyboardButton(
-                text=_["CLOSE_BUTTON"],
-                callback_data="close"
-            )
+            InlineKeyboardButton(text="➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ", url="https://t.me/BRANDRD_BOT")
         ],
+        [InlineKeyboardButton(text=_["CLOSE_BUTTON"], callback_data="close")],
+    ]
+
+# دالة التحكم في الراديو (اللي كانت مسببة الخطأ)
+def stream_markup2(_, chat_id):
+    return [
+        [
+            InlineKeyboardButton(text="▷", callback_data=f"ADMIN Resume|{chat_id}"),
+            InlineKeyboardButton(text="II", callback_data=f"ADMIN Pause|{chat_id}"),
+            InlineKeyboardButton(text="▢", callback_data=f"ADMIN Stop|{chat_id}"),
+        ],
+        [
+            InlineKeyboardButton(text="❖ الـمـالـك ❖", url="https://t.me/S_G0C7"),
+            InlineKeyboardButton(text="❖ الـدعـم ❖", url="https://t.me/music0587"),
+        ],
+        [
+            InlineKeyboardButton(text="➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ", url="https://t.me/BRANDRD_BOT")
+        ],
+        [InlineKeyboardButton(text=_["CLOSE_BUTTON"], callback_data="close")],
     ]
 
 
