@@ -6,6 +6,8 @@ from pyrogram.types import Message
 
 from BrandrdXMusic import app
 
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ
+
 fetch = AsyncClient(
     http2=True,
     verify=False,
@@ -251,7 +253,7 @@ def isArgInt(txt) -> list:
 
 @app.on_message(filters.command(["q", "r"]) & filters.reply)
 async def msg_quotly_cmd(self: app, ctx: Message):
-    ww = await ctx.reply_text("ᴡᴀɪᴛ ᴀ sᴇᴄᴏɴᴅ......")
+    ww = await ctx.reply_text("**صـبـرك ثـوانـي جـاري تـنـفـيـذ طـلـبـك...**")
     is_reply = False
     if ctx.command[0].endswith("r"):
         is_reply = True
@@ -260,7 +262,7 @@ async def msg_quotly_cmd(self: app, ctx: Message):
         if check_arg[0]:
             if check_arg[1] < 2 or check_arg[1] > 10:
                 await ww.delete()
-                return await ctx.reply_msg("Invalid range", del_in=6)
+                return await ctx.reply_text("**الـنـطـاق غـيـر صـالـح يـا مـطـور ⚠️**")
             try:
                 messages = [
                     i
@@ -275,16 +277,16 @@ async def msg_quotly_cmd(self: app, ctx: Message):
                     if not i.empty and not i.media
                 ]
             except Exception:
-                return await ctx.reply_text("🤷🏻‍♂️")
+                return await ctx.reply_text("**مـش عـارف جـلـب الـرسـايـل لـيـه! 🤷🏻‍♂️**")
             try:
                 make_quotly = await pyrogram_to_quotly(messages, is_reply=is_reply)
                 bio_sticker = BytesIO(make_quotly)
-                bio_sticker.name = "misskatyquote_sticker.webp"
+                bio_sticker.name = "boda_quote.webp"
                 await ww.delete()
                 return await ctx.reply_sticker(bio_sticker)
             except Exception:
                 await ww.delete()
-                return await ctx.reply_msg("🤷🏻‍♂️")
+                return await ctx.reply_text("**فـشـل فـي عـمـل الـمـلـصـق 🤷🏻‍♂️**")
     try:
         messages_one = await self.get_messages(
             chat_id=ctx.chat.id, message_ids=ctx.reply_to_message.id, replies=-1
@@ -292,33 +294,33 @@ async def msg_quotly_cmd(self: app, ctx: Message):
         messages = [messages_one]
     except Exception:
         await ww.delete()
-        return await ctx.reply_msg("🤷🏻‍♂️")
+        return await ctx.reply_text("**مـش عـارف أجـيـب الـرسـالـة دي! 🤷🏻‍♂️**")
     try:
         make_quotly = await pyrogram_to_quotly(messages, is_reply=is_reply)
         bio_sticker = BytesIO(make_quotly)
-        bio_sticker.name = "misskatyquote_sticker.webp"
+        bio_sticker.name = "boda_quote.webp"
         await ww.delete()
         return await ctx.reply_sticker(bio_sticker)
     except Exception as e:
         await ww.delete()
-        return await ctx.reply_msg(f"ERROR: {e}")
+        return await ctx.reply_text(f"**حـصـل خـطـأ يـا مـطـور :** `{e}`")
 
 
 __HELP__ = """
-**ǫᴜᴏᴛᴇ ɢᴇɴᴇʀᴀᴛɪᴏɴ ʙᴏᴛ ᴄᴏᴍᴍᴀɴᴅs**
+**أوامـر صـنـع الـاقتـبـاسـات الـمـدلعـة**
 
-ᴜsᴇ ᴛʜᴇsᴇ ᴄᴏᴍᴍᴀɴᴅs ᴛᴏ ᴄʀᴇᴀᴛᴇ ǫᴜᴏᴛᴇs ғʀᴏᴍ ᴍᴇssᴀɢᴇs:
+اسـتـخـدم الأوامـر دي عـلـى أي رسـالـة (ريـبـلاي):
 
-- `/q`: ᴄʀᴇᴀᴛᴇ ᴀ ǫᴜᴏᴛᴇ ғʀᴏᴍ ᴀ sɪɴɢʟᴇ ᴍᴇssᴀɢᴇ.
-- `/r`: ᴄʀᴇᴀᴛᴇ ᴀ ǫᴜᴏᴛᴇ ғʀᴏᴍ ᴀ sɪɴɢʟᴇ ᴍᴇssᴀɢᴇ ᴀɴᴅ ɪᴛs ʀᴇᴘʟɪᴇᴅ ᴍᴇssᴀɢᴇ.
+- `/q`: لـعـمـل مـلـصـق لـرسـالـة واحـدة.
+- `/r`: لـعـمـل مـلـصـق لـلـرسـالـة مـع الـرد الـخـاص بـهـا.
 
-**ᴇxᴀᴍᴘʟᴇs:**
-- `/q `: ᴄʀᴇᴀᴛᴇ ᴀ ǫᴜᴏᴛᴇ ғʀᴏᴍ ʀᴇᴘʟɪᴇᴅ ᴍᴇssᴀɢᴇs.
+**أمـثـلـة:**
+- `/q 5`: لـعـمـل مـلـصـق يـجـمـع 5 رسـايـل مـتـتـالـيـة.
 
-- `/r `: ᴄʀᴇᴀᴛᴇ ᴀ ǫᴜᴏᴛᴇ ғʀᴏᴍ ʀᴇᴘʟɪᴇᴅ ᴍᴇssᴀɢᴇs.
-
-**ɴᴏᴛᴇ:**
-ᴍᴀᴋᴇ sᴜʀᴇ ᴛᴏ ʀᴇᴘʟʏ ᴛᴏ ᴀ ᴍᴇssᴀɢᴇ ғᴏʀ ᴛʜᴇ ǫᴜᴏᴛᴇ ᴄᴏᴍᴍᴀɴᴅ ᴛᴏ ᴡᴏʀᴋ.
+**مـلاحـظـة:**
+لازم تـرد (ريـبـلاي) عـلـى الـرسـالـة الـلـي عـايـز تـحـولـهـا لـمـلـصـق.
 """
 
-__MODULE__ = "Qᴜᴏᴛᴇ"
+__MODULE__ = "الـاقتـبـاسـات"
+
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ
