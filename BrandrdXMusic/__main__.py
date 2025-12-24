@@ -21,7 +21,7 @@ async def init():
         and not config.STRING4
         and not config.STRING5
     ):
-        LOGGER(__name__).error("Assistant client variables not defined, exiting...")
+        LOGGER(__name__).error("⚠️ عذراً، لم يتم العثور على جلسات المساعد (String Session).")
         exit()
     await sudo()
     try:
@@ -36,27 +36,29 @@ async def init():
     await app.start()
     for all_module in ALL_MODULES:
         importlib.import_module("BrandrdXMusic.plugins" + all_module)
-    LOGGER("BrandrdXMusic.plugins").info("Successfully Imported Modules...")
+    LOGGER("BrandrdXMusic.plugins").info("✅ تم تحميل جميع الإضافات والموديولات بنجاح.")
     await userbot.start()
     await Hotty.start()
     try:
         await Hotty.stream_call("https://graph.org/file/e999c40cb700e7c684b75.mp4")
     except NoActiveGroupCall:
         LOGGER("BrandrdXMusic").error(
-            "Please turn on the videochat of your log group\channel.\n\nStopping Bot..."
+            "❌ يرجى تفعيل المحادثة المرئية في مجموعة السجل أولاً.. يتم الإغلاق."
         )
         exit()
     except:
         pass
     await Hotty.decorators()
     LOGGER("BrandrdXMusic").info(
-        "ᴅʀᴏᴘ ʏᴏᴜʀ ɢɪʀʟꜰʀɪᴇɴᴅ'ꜱ ɴᴜᴍʙᴇʀ ᴀᴛ @BRANDED_PAID_CC ᴊᴏɪɴ @BRANDRD_BOT , @BRANDED_WORLD ꜰᴏʀ ᴀɴʏ ɪꜱꜱᴜᴇꜱ"
+        "\n\n✨ تم تشغيل سورس بُودَا بنجاح ✨\n\n➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ\n"
     )
     await idle()
     await app.stop()
     await userbot.stop()
-    LOGGER("BrandrdXMusic").info("Stopping Brandrd Music Bot...")
+    LOGGER("BrandrdXMusic").info("🛑 يتم الآن إيقاف تشغيل البوت.. نراكم لاحقاً.\n\n➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ")
 
 
 if __name__ == "__main__":
     asyncio.get_event_loop().run_until_complete(init())
+
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ
