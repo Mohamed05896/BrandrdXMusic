@@ -7,6 +7,7 @@ from BrandrdXMusic.utils.database import blacklist_chat, blacklisted_chats, whit
 from BrandrdXMusic.utils.decorators.language import language
 from config import BANNED_USERS
 
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅَا
 
 @app.on_message(filters.command(["blchat", "blacklistchat"]) & SUDOERS)
 @language
@@ -46,16 +47,18 @@ async def white_funciton(client, message: Message, _):
 @app.on_message(filters.command(["blchats", "blacklistedchats"]) & ~BANNED_USERS)
 @language
 async def all_chats(client, message: Message, _):
-    text = _["black_7"]
+    text = "**قـائـمـة الـمـجـمـوعـات الـمـحـظـورة :**\n\n"
     j = 0
     for count, chat_id in enumerate(await blacklisted_chats(), 1):
         try:
             title = (await app.get_chat(chat_id)).title
         except:
-            title = "ᴘʀɪᴠᴀᴛᴇ ᴄʜᴀᴛ"
+            title = "**مـجـمـوعـة خـاصـة**"
         j = 1
-        text += f"{count}. {title}[<code>{chat_id}</code>]\n"
+        text += f"**{count}ـ {title}** [<code>{chat_id}</code>]\n"
     if j == 0:
         await message.reply_text(_["black_8"].format(app.mention))
     else:
         await message.reply_text(text)
+
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅَا
