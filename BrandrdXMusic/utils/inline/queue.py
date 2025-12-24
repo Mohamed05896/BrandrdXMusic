@@ -128,7 +128,7 @@ def queuemarkup(_, vidid, chat_id):
             ),
         ],
         [
-            InlineKeyboardButton(text="➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ", url="https://t.me/BRANDRD_BOT")
+            InlineKeyboardButton(text="➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ", url="https://t.me/SourceBoda")
         ],
     ]
     return buttons
