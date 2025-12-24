@@ -18,6 +18,7 @@ from BrandrdXMusic.utils.decorators.language import language, languageCB
 from BrandrdXMusic.utils.inline.stats import back_stats_buttons, stats_buttons
 from config import BANNED_USERS
 
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ
 
 @app.on_message(filters.command(["stats", "gstats"]) & filters.group & ~BANNED_USERS)
 @language
@@ -25,7 +26,7 @@ async def stats_global(client, message: Message, _):
     upl = stats_buttons(_, True if message.from_user.id in SUDOERS else False)
     await message.reply_photo(
         photo=config.STATS_IMG_URL,
-        caption=_["gstats_2"].format(app.mention),
+        caption=f"**📊 إحـصـائـيـات بـوت {app.mention}**\n\nانقر على الأزرار بالأسفل لعرض تفاصيل النظام أو الإحصائيات العامة.",
         reply_markup=upl,
     )
 
@@ -35,7 +36,7 @@ async def stats_global(client, message: Message, _):
 async def home_stats(client, CallbackQuery, _):
     upl = stats_buttons(_, True if CallbackQuery.from_user.id in SUDOERS else False)
     await CallbackQuery.edit_message_text(
-        text=_["gstats_2"].format(app.mention),
+        text=f"**📊 إحـصـائـيـات بـوت {app.mention}**\n\nانقر على الأزرار بالأسفل لعرض تفاصيل النظام أو الإحصائيات العامة.",
         reply_markup=upl,
     )
 
@@ -49,89 +50,93 @@ async def overall_stats(client, CallbackQuery, _):
         await CallbackQuery.answer()
     except:
         pass
-    await CallbackQuery.edit_message_text(_["gstats_1"].format(app.mention))
+    
     served_chats = len(await get_served_chats())
     served_users = len(await get_served_users())
     total_queries = await get_queries()
-    text = _["gstats_3"].format(
-        app.mention,
-        len(assistants),
-        len(BANNED_USERS),
-        served_chats,
-        served_users,
-        total_queries,
-        len(ALL_MODULES),
-        len(SUDOERS),
-        config.AUTO_LEAVING_ASSISTANT,
-        config.DURATION_LIMIT_MIN,
-    )
+    
+    text = f"""
+**📊 إحصائيات التشغيل العام لـ {app.mention} :**
+
+**✧ الـمـوديلات :** {len(ALL_MODULES)}
+**✧ الـمـسـاعـديـن :** {len(assistants)}
+**✧ الـمـحـظـوريـن :** {len(BANNED_USERS)}
+**✧ الـمـطـوريـن :** {len(SUDOERS)}
+
+**✧ الـمـجـمـوعـات :** {served_chats}
+**✧ الـمـسـتـخـدمـيـن :** {served_users}
+**✧ إجـمـالـي الـطـلـبـات :** {total_queries}
+
+**✧ مـغادرة الـمـسـاعـد آلـيـاً :** {"نعم" if config.AUTO_LEAVING_ASSISTANT == str(True) else "لا"}
+**✧ حـد الـتـشـغـيـل الـمـسـمـوح :** {config.DURATION_LIMIT_MIN} دقيقة
+"""
     med = InputMediaPhoto(media=config.STATS_IMG_URL, caption=text)
     try:
         await CallbackQuery.edit_message_media(media=med, reply_markup=upl)
     except MessageIdInvalid:
-        await CallbackQuery.message.reply_photo(
-            photo=config.STATS_IMG_URL, caption=text, reply_markup=upl
-        )
+        await CallbackQuery.message.reply_photo(photo=config.STATS_IMG_URL, caption=text, reply_markup=upl)
 
 
 @app.on_callback_query(filters.regex("bot_stats_sudo"))
 @languageCB
 async def bot_stats(client, CallbackQuery, _):
     if CallbackQuery.from_user.id not in SUDOERS:
-        return await CallbackQuery.answer(_["gstats_4"], show_alert=True)
+        return await CallbackQuery.answer("هذا القسم مخصص للمطورين فقط يا حُب.", show_alert=True)
     upl = back_stats_buttons(_)
     try:
         await CallbackQuery.answer()
     except:
         pass
-    await CallbackQuery.edit_message_text(_["gstats_1"].format(app.mention))
+
     p_core = psutil.cpu_count(logical=False)
     t_core = psutil.cpu_count(logical=True)
-    ram = str(round(psutil.virtual_memory().total / (1024.0**3))) + " ɢʙ"
+    ram = str(round(psutil.virtual_memory().total / (1024.0**3))) + " GB"
+    
     try:
         cpu_freq = psutil.cpu_freq().current
         if cpu_freq >= 1000:
-            cpu_freq = f"{round(cpu_freq / 1000, 2)}ɢʜᴢ"
+            cpu_freq = f"{round(cpu_freq / 1000, 2)} GHz"
         else:
-            cpu_freq = f"{round(cpu_freq, 2)}ᴍʜᴢ"
+            cpu_freq = f"{round(cpu_freq, 2)} MHz"
     except:
-        cpu_freq = "ғᴀɪʟᴇᴅ ᴛᴏ ғᴇᴛᴄʜ"
+        cpu_freq = "تعذر الجلب"
+
     hdd = psutil.disk_usage("/")
     total = hdd.total / (1024.0**3)
     used = hdd.used / (1024.0**3)
     free = hdd.free / (1024.0**3)
+    
     call = await mongodb.command("dbstats")
     datasize = call["dataSize"] / 1024
     storage = call["storageSize"] / 1024
     served_chats = len(await get_served_chats())
     served_users = len(await get_served_users())
-    text = _["gstats_5"].format(
-        app.mention,
-        len(ALL_MODULES),
-        platform.system(),
-        ram,
-        p_core,
-        t_core,
-        cpu_freq,
-        pyver.split()[0],
-        pyrover,
-        pytgver,
-        str(total)[:4],
-        str(used)[:4],
-        str(free)[:4],
-        served_chats,
-        served_users,
-        len(BANNED_USERS),
-        len(await get_sudoers()),
-        str(datasize)[:6],
-        storage,
-        call["collections"],
-        call["objects"],
-    )
+    
+    text = f"""
+**🖥️ إحـصـائـيـات خـادم الـسـورس :**
+
+**✧ الـنـظـام :** {platform.system()}
+**✧ الـرامـات :** {ram}
+**✧ الـمـعـالـج :** {p_core} نـواة حـقـيـقـيـة / {t_core} وهمـية
+**✧ الـتـردد :** {cpu_freq}
+
+**✧ الـمـسـاحة الإجـمـالـية :** {str(total)[:4]} GB
+**✧ الـمـسـاحة الـمـسـتـهـلكـة :** {str(used)[:4]} GB
+**✧ الـمـسـاحة الـفـارغـة :** {str(free)[:4]} GB
+
+**✧ إصـدار الـبـايـثـون :** {pyver.split()[0]}
+**✧ إصـدار بـايـروجـرام :** {pyrover}
+**✧ إصـدار الـكـولات :** {pytgver}
+
+**✧ الـمـجـمـوعـات :** {served_chats}
+**✧ الـمـسـتـخـدمـيـن :** {served_users}
+**✧ الـسـودو :** {len(await get_sudoers())}
+**✧ قـاعدة الـبـيـانـات :** {str(datasize)[:6]} KB
+"""
     med = InputMediaPhoto(media=config.STATS_IMG_URL, caption=text)
     try:
         await CallbackQuery.edit_message_media(media=med, reply_markup=upl)
     except MessageIdInvalid:
-        await CallbackQuery.message.reply_photo(
-            photo=config.STATS_IMG_URL, caption=text, reply_markup=upl
-        )
+        await CallbackQuery.message.reply_photo(photo=config.STATS_IMG_URL, caption=text, reply_markup=upl)
+
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ
