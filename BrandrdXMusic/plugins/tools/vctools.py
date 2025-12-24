@@ -15,23 +15,24 @@ from telethon.tl.functions.phone import (
     InviteToGroupCallRequest,
 )
 
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅَا
 
 # vc on
 @app.on_message(filters.video_chat_started)
 async def brah(_, msg):
-    await msg.reply("**😍ᴠɪᴅᴇᴏ ᴄʜᴀᴛ sᴛᴀʀᴛᴇᴅ🥳**")
+    await msg.reply("**تـم بـدء الـدردشـة الـمـرئـيـة.. مـنـور يـا حـب ✨**")
 
 
 # vc off
 @app.on_message(filters.video_chat_ended)
 async def brah2(_, msg):
-    await msg.reply("**😕ᴠɪᴅᴇᴏ ᴄʜᴀᴛ ᴇɴᴅᴇᴅ💔**")
+    await msg.reply("**تـم إنـهـاء الـدردشـة الـمـرئـيـة.. نـشـوفـك عـلـى خـيـر 👋🏻**")
 
 
 # invite members on vc
 @app.on_message(filters.video_chat_members_invited)
 async def brah3(app: app, message: Message):
-    text = f"➻ {message.from_user.mention}\n\n**๏ ɪɴᴠɪᴛɪɴɢ ɪɴ ᴠᴄ ᴛᴏ :**\n\n**➻ **"
+    text = f"➻ {message.from_user.mention}\n\n**قـام بـدعـوة هـؤلاء الأبـطـال :**\n\n**➻ **"
     x = 0
     for user in message.video_chat_members_invited.users:
         try:
@@ -43,13 +44,13 @@ async def brah3(app: app, message: Message):
     try:
         invite_link = await app.export_chat_invite_link(message.chat.id)
         add_link = f"https://t.me/{app.username}?startgroup=true"
-        reply_text = f"{text} 🤭🤭"
+        reply_text = f"{text} ✨"
 
         await message.reply(
             reply_text,
             reply_markup=InlineKeyboardMarkup(
                 [
-                    [InlineKeyboardButton(text="๏ ᴊᴏɪɴ ᴠᴄ ๏", url=add_link)],
+                    [InlineKeyboardButton(text="✧ انـضـم لـلـمـكـالـمـة ✧", url=add_link)],
                 ]
             ),
         )
@@ -65,15 +66,15 @@ def calculate_math(client, message):
     expression = message.text.split("/math ", 1)[1]
     try:
         result = eval(expression)
-        response = f"ᴛʜᴇ ʀᴇsᴜʟᴛ ɪs : {result}"
+        response = f"**الـنـتـيـجـة يـا بـطـل هـي :** `{result}`"
     except:
-        response = "ɪɴᴠᴀʟɪᴅ ᴇxᴘʀᴇssɪᴏɴ"
+        response = "**الـمـسـألـة فـيـهـا غـلـط يـا رايـق.. ركـز ❌**"
     message.reply(response)
 
 
 @app.on_message(filters.command(["spg"], ["/", "!", "."]))
 async def search(event):
-    msg = await event.respond("Searching...")
+    msg = await event.respond("**جـاري الـبـحـث.. صـبـرك يـا رايـق 🔎**")
     async with aiohttp.ClientSession() as session:
         start = 1
         async with session.get(
@@ -84,7 +85,7 @@ async def search(event):
             result = ""
 
             if not response.get("items"):
-                return await msg.edit("No results found!")
+                return await msg.edit("**مـفـيـش نـتـائـج يـا بـطـل! 🤷🏻‍♂️**")
             for item in response["items"]:
                 title = item["title"]
                 link = item["link"]
@@ -97,9 +98,11 @@ async def search(event):
                 if link in result:
                     # remove duplicates
                     continue
-                result += f"{title}\n{link}\n\n"
+                result += f"**❍ {title}**\n{link}\n\n"
             prev_and_next_btns = [
-                Button.inline("▶️Next▶️", data=f"next {start+10} {event.text.split()[1]}")
+                Button.inline("الـتـالـي ▶️", data=f"next {start+10} {event.text.split()[1]}")
             ]
             await msg.edit(result, link_preview=False, buttons=prev_and_next_btns)
             await session.close()
+
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅَا
