@@ -7,17 +7,25 @@ from pyrogram import *
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram.enums import *
 
-#BOT FILE NAME
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅَا
+
+# ملفات البوت
 from BrandrdXMusic import app as app
 from BrandrdXMusic.mongo.couples_db import _get_image, get_couple
 
 POLICE = [
     [
         InlineKeyboardButton(
-            text="ᴍʏ ᴄᴜᴛᴇ ᴅᴇᴠᴇʟᴏᴘᴇʀ  🥀",
-            url=f"https://t.me/BRANDED_PAID_CC",
+            text="👑 مـالـك الـبـوت 👑",
+            url=f"https://t.me/S_G0C7",
         ),
     ],
+    [
+        InlineKeyboardButton(
+            text="✨ سـورس بُـودَا ✨",
+            url=f"https://t.me/SourceBoda",
+        ),
+    ]
 ]
 
 
@@ -41,21 +49,22 @@ def dt_tom():
 tomorrow = str(dt_tom())
 today = str(dt()[0])
 
-@app.on_message(filters.command("couples"))
+@app.on_message(filters.command(["couples", "كابلز", "عشاق"]))
 async def ctest(_, message):
     cid = message.chat.id
     if message.chat.type == ChatType.PRIVATE:
-        return await message.reply_text("ᴛʜɪs ᴄᴏᴍᴍᴀɴᴅ ᴏɴʟʏ ᴡᴏʀᴋs ɪɴ ɢʀᴏᴜᴘs.")
+        return await message.reply_text("**هـذا الأمـر يـعـمـل فـي الـمـجـمـوعـات فـقـط يـا حـب.⚠️**")
     try:
-     #  is_selected = await get_couple(cid, today)
-     #  if not is_selected:
-         msg = await message.reply_text("ɢᴇɴᴇʀᴀᴛɪɴɢ ᴄᴏᴜᴘʟᴇs ɪᴍᴀɢᴇ...")
-         #GET LIST OF USERS
+         msg = await message.reply_text("**جـاري اخـتـيـار كـابـلـز الـيـوم.. 💖**")
+         
          list_of_users = []
 
          async for i in app.get_chat_members(message.chat.id, limit=50):
              if not i.user.is_bot:
                list_of_users.append(i.user.id)
+
+         if len(list_of_users) < 2:
+             return await msg.edit("**الـمـجـمـوعـة مـحـتـاجـة أعـضـاء أكـتـر عـشـان نـخـتـار كـابـلـز! 🤷🏻‍♂️**")
 
          c1_id = random.choice(list_of_users)
          c2_id = random.choice(list_of_users)
@@ -106,62 +115,31 @@ async def ctest(_, message):
          img.save(f'test_{cid}.png')
     
          TXT = f"""
-**ᴛᴏᴅᴀʏ's ᴄᴏᴜᴘʟᴇ ᴏғ ᴛʜᴇ ᴅᴀʏ :
+**✫ كـابـلـز الـيـوم بـالـمـجـمـوعـة :**
 
-{N1} + {N2} = 💚
+**{N1} + {N2} = 💚**
 
-ɴᴇxᴛ ᴄᴏᴜᴘʟᴇs ᴡɪʟʟ ʙᴇ sᴇʟᴇᴄᴛᴇᴅ ᴏɴ {tomorrow} !!**
+**سـيـتـم اخـتـيـار كـابـلـز جـديـد يـوم {tomorrow} !!**
 """
     
-         await message.reply_photo(f"test_{cid}.png", caption=TXT, reply_markup=InlineKeyboardMarkup(POLICE),
-    )
+         await message.reply_photo(
+             f"test_{cid}.png", 
+             caption=TXT, 
+             reply_markup=InlineKeyboardMarkup(POLICE)
+         )
          await msg.delete()
-         a = upload_file(f"test_{cid}.png")
-         for x in a:
-           img = "https://graph.org/" + x
-           couple = {"c1_id": c1_id, "c2_id": c2_id}
-          # await save_couple(cid, today, couple, img)
-    
          
-      # elif is_selected:
-      #   msg = await message.reply_text("𝐆ᴇᴛᴛɪɴɢ 𝐓ᴏᴅᴀʏs 𝐂ᴏᴜᴘʟᴇs 𝐈ᴍᴀɢᴇ...")
-      #   b = await _get_image(cid)
-       #  c1_id = int(is_selected["c1_id"])
-       #  c2_id = int(is_selected["c2_id"])
-       #  c1_name = (await app.get_users(c1_id)).first_name
-        # c2_name = (await app.get_users(c2_id)).first_name
-         
-      #   TXT = f"""
-#**ᴛᴏᴅᴀʏ's sᴇʟᴇᴄᴛᴇᴅ ᴄᴏᴜᴘʟᴇs 🎉 :
-#➖➖➖➖➖➖➖➖➖➖➖➖
-#[{c1_name}](tg://openmessage?user_id={c1_id}) + [{c2_name}](tg://openmessage?user_id={c2_id}) = ❣️
-#➖➖➖➖➖➖➖➖➖➖➖➖
-#ɴᴇxᴛ ᴄᴏᴜᴘʟᴇꜱ ᴡɪʟʟ ʙᴇ ꜱᴇʟᴇᴄᴛᴇᴅ ᴏɴ {tomorrow} !!**
-#"""
- #        await message.reply_photo(b, caption=TXT)
-        # await msg.delete()
+         # تنظيف الملفات
+         if os.path.exists(f"test_{cid}.png"):
+             os.remove(f"test_{cid}.png")
+
     except Exception as e:
         print(str(e))
-    try:
-      os.remove(f"./downloads/pfp1.png")
-      os.remove(f"./downloads/pfp2.png")
-      os.remove(f"test_{cid}.png")
-    except Exception:
-       pass
          
 
-__mod__ = "COUPLES"
+__mod__ = "الـكـابـلـز"
 __help__ = """
-**» /couples** - Get Todays Couples Of The Group In Interactive View
+**» /couples** - لـعـرض كـابـلـز الـيـوم فـي الـجـروب بـتـنـسـيـق رائع.
 """
 
-
-
-
-
-    
-
-
-
-
-    
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅَا
