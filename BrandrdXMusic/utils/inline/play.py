@@ -72,7 +72,7 @@ def stream_markup_timer(_, vidid, chat_id, played, dur):
             InlineKeyboardButton(text="❖ الـدعـم ❖", url="https://t.me/music0587"),
         ],
         [
-            InlineKeyboardButton(text="➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ", url="https://t.me/BRANDRD_BOT")
+            InlineKeyboardButton(text="➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ", url="https://t.me/SourceBoda")
         ],
         [InlineKeyboardButton(text=_["CLOSE_BUTTON"], callback_data="close")],
     ]
