@@ -30,28 +30,28 @@ from config import BANNED_USERS, lyrical
 from time import time
 from BrandrdXMusic.utils.extraction import extract_user
 
-# Define a dictionary to track the last message timestamp for each user
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ
+
 user_last_message_time = {}
 user_command_count = {}
-# Define the threshold for command spamming (e.g., 20 commands within 60 seconds)
 SPAM_THRESHOLD = 2
 SPAM_WINDOW_SECONDS = 5
 
-
 from pyrogram.types import InlineKeyboardMarkup
-
 import config
 from BrandrdXMusic import Carbon, YouTube, app
 from BrandrdXMusic.core.call import Hotty
 from BrandrdXMusic.misc import db
 from BrandrdXMusic.utils.database import add_active_video_chat, is_active_chat
 from BrandrdXMusic.utils.exceptions import AssistantErr
+
+# التعديل هنا: إضافة stream_markup2 للاستيراد
 from BrandrdXMusic.utils.inline import (
     aq_markup,
     close_markup,
     stream_markup,
+    stream_markup2,
 )
-from BrandrdXMusic.utils.pastebin import HottyBin
 from BrandrdXMusic.utils.stream.queue import put_queue, put_queue_index
 from youtubesearchpython.__future__ import VideosSearch
 
@@ -157,7 +157,7 @@ async def stream(
         if count == 0:
             return
         else:
-            link = await brandedBin(msg)
+            link = await HottyBin(msg)
             lines = msg.count("\n")
             if lines >= 17:
                 car = os.linesep.join(msg.split(os.linesep)[:17])
@@ -284,6 +284,7 @@ async def stream(
                 "audio",
                 forceplay=forceplay,
             )
+            # تم التأكد من استخدام stream_markup2 هنا
             button = stream_markup2(_, chat_id)
             run = await app.send_photo(
                 original_chat_id,
@@ -466,22 +467,8 @@ async def stream(
             await mystic.delete()
 
 
-# Function to get thumbnail by video ID
-async def get_thumb(videoid):
-    try:
-        # Search for the video using video ID
-        query = f"https://www.youtube.com/watch?v={videoid}"
-        results = VideosSearch(query, limit=1)
-        for result in (await results.next())["result"]:
-            thumbnail = result["thumbnails"][0]["url"].split("?")[0]
-        return thumbnail
-    except Exception as e:
-        return config.YOUTUBE_IMG_URL
-
-
 async def get_thumb(vidid):
     try:
-        # Search for the video using video ID
         query = f"https://www.youtube.com/watch?v={vidid}"
         results = VideosSearch(query, limit=1)
         for result in (await results.next())["result"]:
@@ -489,3 +476,5 @@ async def get_thumb(vidid):
         return thumbnail
     except Exception as e:
         return config.YOUTUBE_IMG_URL
+
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ
