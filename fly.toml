@@ -1,14 +1,8 @@
-# fly.toml app configuration file
-# Generated for source-boda-6bvrwa
-
 app = "source-boda-6bvrwa"
 primary_region = "cdg"
 
 [build]
   dockerfile = "Dockerfile"
-
-[processes]
-  app = "python3 -m anony"
 
 [[vm]]
   cpu_kind = "shared"
