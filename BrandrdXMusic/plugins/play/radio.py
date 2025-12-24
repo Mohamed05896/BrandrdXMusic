@@ -37,9 +37,9 @@ RADIO_STATION = {
     # 🕌 إذاعة القرآن الكريم
     "قرآن كريم": "https://stream.radiojar.com/8s5u5tpdtwzuv",
 
-    "YouTube": "https://www.youtube.com/live/eu191hR_LEc?si=T-9QYD548jd0Mogp",
-    "Zee News": "https://www.youtube.com/live/TPcmrPrygDc?si=hiHBkIidgurQAd1P",
-    "Aaj Tak": "https://www.youtube.com/live/Nq2wYlWFucg?si=usY4UYiSBInKA0S1",
+    "YouTube": "https://www.youtube.com/live/eu191hR_LEc",
+    "Zee News": "https://www.youtube.com/live/TPcmrPrygDc",
+    "Aaj Tak": "https://www.youtube.com/live/Nq2wYlWFucg",
 }
 
 valid_stations = "\n".join([f"`{name}`" for name in sorted(RADIO_STATION.keys())])
@@ -52,6 +52,7 @@ valid_stations = "\n".join([f"`{name}`" for name in sorted(RADIO_STATION.keys())
 )
 async def radio(client, message: Message):
     msg = await message.reply_text("**يرجى الانتظار قليلاً جاري التحضير.. ✨**")
+
     try:
         try:
             userbot = await get_assistant(message.chat.id)
@@ -60,88 +61,76 @@ async def radio(client, message: Message):
             return await msg.edit_text(
                 f"**عذراً، لا أملك صلاحية إضافة المساعد {userbot.mention} إلى المجموعة.. 🥀**"
             )
+
         if get.status == ChatMemberStatus.BANNED:
             return await msg.edit_text(
-                text=f"**الحساب المساعد {userbot.mention} محظور في هذه المجموعة {message.chat.title} ❌**\n\n𖢵 ɪᴅ : `{userbot.id}`\n𖢵 ɴᴀᴍᴇ : {userbot.mention}\n𖢵 ᴜsᴇʀɴᴀᴍᴇ : @{userbot.username}\n\n**يرجى إلغاء الحظر عنه والمحاولة مرة أخرى.. ✨**",
+                f"**الحساب المساعد {userbot.mention} محظور في هذه المجموعة ❌**"
             )
+
     except UserNotParticipant:
-        if message.chat.username:
-            invitelink = message.chat.username
-            try:
-                await userbot.resolve_peer(invitelink)
-            except Exception as ex:
-                logging.exception(ex)
-        else:
-            try:
-                invitelink = await client.export_chat_invite_link(message.chat.id)
-            except ChatAdminRequired:
-                return await msg.edit_text(
-                    f"**لا توجد صلاحية (رابط الدعوة) لإضافة المساعد {userbot.mention} هنا.. 🥀**"
-                )
-            except InviteRequestSent:
-                try:
-                    await app.approve_chat_join_request(message.chat.id, userbot.id)
-                except Exception as e:
-                    return await msg.edit(
-                        f"**فشلت محاولة دعوة المساعد {userbot.mention} للمجموعة.. 🥀**\n\n**السبب :** `{e}`"
-                    )
-            except Exception as ex:
-                if "channels.JoinChannel" in str(ex) or "Username not found" in str(ex):
-                    return await msg.edit_text(
-                        f"**لا توجد صلاحيات كافية لدعوة المساعد {userbot.mention} للمجموعة.. 🥀**"
-                    )
-                else:
-                    return await msg.edit_text(
-                        f"**فشلت دعوة المساعد {userbot.mention} للمجموعة.. 🥀**\n\n**السبب :** `{ex}`"
-                    )
-        if invitelink.startswith("https://t.me/+"):
-            invitelink = invitelink.replace("https://t.me/+", "https://t.me/joinchat/")
-        await msg.edit_text(
-            f"**يرجى الانتظار.. جاري إضافة المساعد {userbot.mention} لتشغيل الراديو.. ⚡**"
-        )
         try:
+            if message.chat.username:
+                invitelink = message.chat.username
+            else:
+                invitelink = await client.export_chat_invite_link(message.chat.id)
+
+            if invitelink.startswith("https://t.me/+"):
+                invitelink = invitelink.replace(
+                    "https://t.me/+", "https://t.me/joinchat/"
+                )
+
+            await msg.edit_text(
+                f"**جاري إضافة المساعد {userbot.mention} لتشغيل الراديو.. ⚡**"
+            )
             await userbot.join_chat(invitelink)
             await asyncio.sleep(2)
-            await msg.edit_text(
-                f"**تم انضمام المساعد {userbot.mention} بنجاح، جاري بدء البث.. ✨📻**"
-            )
-        except UserAlreadyParticipant:
-            pass
+
         except InviteRequestSent:
             await app.approve_chat_join_request(message.chat.id, userbot.id)
+        except UserAlreadyParticipant:
+            pass
         except Exception as ex:
             return await msg.edit_text(
-                f"**حدث خطأ أثناء دعوة المساعد {userbot.mention} للمجموعة.. 🥀**\n\n**السبب :** `{ex}`"
+                f"**فشل إضافة المساعد.. 🥀**\n\n**السبب:** `{ex}`"
             )
 
     await msg.delete()
+
     station_name = " ".join(message.command[1:])
     RADIO_URL = RADIO_STATION.get(station_name)
 
-    if RADIO_URL:
-        language = await get_lang(message.chat.id)
-        _ = get_string(language)
-
-        mystic = await message.reply_text(_["play_1"])
-        await stream(
-            _,
-            mystic,
-            message.from_user.id,
-            RADIO_URL,
-            message.chat.id,
-            message.from_user.mention,
-            message.chat.id,
-            video=None,
-            streamtype="index",
-        )
-        return await play_logs(message, streamtype="M3u8 or Index Link")
-    else:
-        await message.reply(
-            f"**يرجى كتابة اسم المحطة بعد الأمر.. 💝**\n\n**المحطات المتاحة هي:**\n{valid_stations}"
+    if not RADIO_URL:
+        return await message.reply(
+            f"**يرجى كتابة اسم المحطة بعد الأمر** 💝\n\n"
+            f"**المحطات المتاحة:**\n{valid_stations}"
         )
 
+    language = await get_lang(message.chat.id)
+    _ = get_string(language)
 
-__MODULE__ = "Rᴀᴅɪᴏ"
-__HELP__ = f"\n/radio [اسم المحطة] - **لتشغيل الراديو في الدردشة الصوتية**\n\n**قائمة المحطات المتاحة:**\n{valid_stations}"
+    mystic = await message.reply_text(_["play_1"])
 
-➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ
+    await stream(
+        _,
+        mystic,
+        message.from_user.id,
+        RADIO_URL,
+        message.chat.id,
+        message.from_user.mention,
+        message.chat.id,
+        video=None,
+        streamtype="index",
+    )
+
+    return await play_logs(message, streamtype="M3u8 / Radio")
+
+
+__MODULE__ = "Radio"
+__HELP__ = (
+    "/radio [اسم المحطة]\n"
+    "لتشغيل الراديو في الدردشة الصوتية\n\n"
+    "المحطات المتاحة:\n"
+    f"{valid_stations}"
+)
+
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ
