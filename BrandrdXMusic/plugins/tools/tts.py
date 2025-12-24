@@ -1,41 +1,47 @@
 import io
-
 from gtts import gTTS
 from pyrogram import filters
-
 from BrandrdXMusic import app
 
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ
 
 @app.on_message(filters.command("tts"))
 async def text_to_speech(client, message):
     if len(message.command) < 2:
         return await message.reply_text(
-            "Please provide some text to convert to speech."
+            "**يا ريت تكتب النص اللي عايز تحوله لصوت بعد الأمر.. مثال:**\n`/tts يا هلا بيك في سورس بودا`"
         )
 
     text = message.text.split(None, 1)[1]
-    tts = gTTS(text, lang="hi")
+    # تم تغيير اللغة إلى العربية (lang="ar")
+    tts = gTTS(text, lang="ar")
     audio_data = io.BytesIO()
     tts.write_to_fp(audio_data)
     audio_data.seek(0)
 
     audio_file = io.BytesIO(audio_data.read())
-    audio_file.name = "audio.mp3"
-    await message.reply_audio(audio_file)
+    audio_file.name = "Boda_Audio.mp3"
+    
+    await message.reply_audio(
+        audio_file, 
+        caption=f"**تم تحويل النص إلى صوت بنجاح ✅**\n\n**النص:** {text[:50]}..."
+    )
 
 
 __HELP__ = """
-**ᴛᴇxᴛ ᴛᴏ sᴘᴇᴇᴄʜ ʙᴏᴛ ᴄᴏᴍᴍᴀɴᴅ**
+**✨ أمـر تـحـويـل الـنـص إلـى صـوت (TTS)**
 
-ᴜsᴇ ᴛʜᴇ `/tts` ᴄᴏᴍᴍᴀɴᴅ ᴛᴏ ᴄᴏɴᴠᴇʀᴛ ᴛᴇxᴛ ɪɴᴛᴏ sᴘᴇᴇᴄʜ.
+اسـتـخـدم الأمـر `/tts` لـتـحـويـل أي نـص تـكـتـبـه لـمـقـطع صـوتـي بـالـلـغة الـعـربـيـة.
 
-- `/tts <ᴛᴇxᴛ>`: ᴄᴏɴᴠᴇʀᴛs ᴛʜᴇ ɢɪᴠᴇɴ ᴛᴇxᴛ ᴛᴏ sᴘᴇᴇᴄʜ ɪɴ ʜɪɴᴅɪ.
+- `/tts <الـنـص>`: بـيـحـول الـكـلام اللـي كـتـبـتـه لـصـوت.
 
-**ᴇxᴀᴍᴘʟᴇ:**
-- `/tts Namaste Duniya`
+**مثال:**
+- `/tts منور يا بودا`
 
-**ɴᴏᴛᴇ:**
-ᴍᴀᴋᴇ sᴜʀᴇ ᴛᴏ ᴘʀᴏᴠɪᴅᴇ sᴏᴍᴇ ᴛᴇxᴛ ᴀғᴛᴇʀ ᴛʜᴇ `/tts` ᴄᴏᴍᴍᴀɴᴅ.
+**ملاحظة:**
+لازم تـكـتـب كـلام بـعـد الأمـر عـشـان الـبـوت يـعـرف يـحـولـه.
 """
 
-__MODULE__ = "Tᴛs"
+__MODULE__ = "تحويل صوتي"
+
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ
