@@ -22,21 +22,23 @@ from BrandrdXMusic.utils.inline import (
 )
 from BrandrdXMusic.utils.logger import play_logs
 from BrandrdXMusic.utils.stream.stream import stream
-from config import BANNED_USERS, lyrical
+# تم استدعاء COMMAND_PREFIXES لربطها بملف الـ config
+from config import BANNED_USERS, lyrical, COMMAND_PREFIXES
 
 
 @app.on_message(
     filters.command(
         [
-            "play",
-            "vplay",
-            "cplay",
+            "play", "تشغيل",
+            "vplay", "فيديو",
+            "cplay", "تشغيل للقناه",
             "cvplay",
             "playforce",
             "vplayforce",
             "cplayforce",
             "cvplayforce",
-        ]
+        ],
+        COMMAND_PREFIXES # تم التعديل هنا لاستخدام البريفكس من الكنفج
     )
     & filters.group
     & ~BANNED_USERS
