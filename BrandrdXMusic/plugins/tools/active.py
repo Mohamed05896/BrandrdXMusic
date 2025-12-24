@@ -11,10 +11,11 @@ from BrandrdXMusic.utils.database import (
     remove_active_video_chat,
 )
 
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ
 
-@app.on_message(filters.command(["activevc", "activevoice"]) & filters.user(OWNER_ID))
+@app.on_message(filters.command(["activevc", "المكالمات", "النشطة"]) & filters.user(OWNER_ID))
 async def activevc(_, message: Message):
-    mystic = await message.reply_text("» ɢᴇᴛᴛɪɴɢ ᴀᴄᴛɪᴠᴇ ᴠᴏɪᴄᴇ ᴄʜᴀᴛs ʟɪsᴛ...")
+    mystic = await message.reply_text("**جـاري فـحـص الـمـكـالـمـات الـصـوتـيـة الـنـشـطـة.. 📡**")
     served_chats = await get_active_chats()
     text = ""
     j = 0
@@ -25,28 +26,27 @@ async def activevc(_, message: Message):
             await remove_active_chat(x)
             continue
         try:
+            title_clean = unidecode(title).upper()
             if (await app.get_chat(x)).username:
                 user = (await app.get_chat(x)).username
-                text += f"<b>{j + 1}.</b> <a href=https://t.me/{user}>{unidecode(title).upper()}</a> [<code>{x}</code>]\n"
+                text += f"**{j + 1}ـ** <a href=https://t.me/{user}>{title_clean}</a>\n└ **آيـدي:** `[ {x} ]`\n\n"
             else:
-                text += (
-                    f"<b>{j + 1}.</b> {unidecode(title).upper()} [<code>{x}</code>]\n"
-                )
+                text += f"**{j + 1}ـ** {title_clean}\n└ **آيـدي:** `[ {x} ]`\n\n"
             j += 1
         except:
             continue
     if not text:
-        await mystic.edit_text(f"» ɴᴏ ᴀᴄᴛɪᴠᴇ ᴠᴏɪᴄᴇ ᴄʜᴀᴛs ᴏɴ {app.mention}.")
+        await mystic.edit_text(f"**لا تـوجـد مـكـالـمـات نـشـطـة حـالـيـاً يـا مـطـور 🎧**")
     else:
         await mystic.edit_text(
-            f"<b>» ʟɪsᴛ ᴏғ ᴄᴜʀʀᴇɴᴛʟʏ ᴀᴄᴛɪᴠᴇ ᴠᴏɪᴄᴇ ᴄʜᴀᴛs :</b>\n\n{text}",
+            f"**قـائـمـة الـمـكـالـمـات الـصـوتـيـة الـجـاريـة 🎤 :**\n\n{text}**عـدد الـمـكـالـمـات:** {j}",
             disable_web_page_preview=True,
         )
 
 
-@app.on_message(filters.command(["activev", "activevideo"]) & filters.user(OWNER_ID))
+@app.on_message(filters.command(["activev", "الفيديو", "نشطة_فيديو"]) & filters.user(OWNER_ID))
 async def activevi_(_, message: Message):
-    mystic = await message.reply_text("» ɢᴇᴛᴛɪɴɢ ᴀᴄᴛɪᴠᴇ ᴠɪᴅᴇᴏ ᴄʜᴀᴛs ʟɪsᴛ...")
+    mystic = await message.reply_text("**جـاري بـحـث مـكـالـمـات الـفـيـديـو الـنـشـطـة.. 🎥**")
     served_chats = await get_active_video_chats()
     text = ""
     j = 0
@@ -57,20 +57,21 @@ async def activevi_(_, message: Message):
             await remove_active_video_chat(x)
             continue
         try:
+            title_clean = unidecode(title).upper()
             if (await app.get_chat(x)).username:
                 user = (await app.get_chat(x)).username
-                text += f"<b>{j + 1}.</b> <a href=https://t.me/{user}>{unidecode(title).upper()}</a> [<code>{x}</code>]\n"
+                text += f"**{j + 1}ـ** <a href=https://t.me/{user}>{title_clean}</a>\n└ **آيـدي:** `[ {x} ]`\n\n"
             else:
-                text += (
-                    f"<b>{j + 1}.</b> {unidecode(title).upper()} [<code>{x}</code>]\n"
-                )
+                text += f"**{j + 1}ـ** {title_clean}\n└ **آيـدي:** `[ {x} ]`\n\n"
             j += 1
         except:
             continue
     if not text:
-        await mystic.edit_text(f"» ɴᴏ ᴀᴄᴛɪᴠᴇ ᴠɪᴅᴇᴏ ᴄʜᴀᴛs ᴏɴ {app.mention}.")
+        await mystic.edit_text(f"**لا تـوجـد مـكـالـمـات فـيـديـو جـاريـة حـالـيـاً 🎬**")
     else:
         await mystic.edit_text(
-            f"<b>» ʟɪsᴛ ᴏғ ᴄᴜʀʀᴇɴᴛʟʏ ᴀᴄᴛɪᴠᴇ ᴠɪᴅᴇᴏ ᴄʜᴀᴛs :</b>\n\n{text}",
+            f"**قـائـمـة مـكـالـمـات الـفـيـديـو الـنـشـطـة 🎥 :**\n\n{text}**عـدد الـمـكـالـمـات:** {j}",
             disable_web_page_preview=True,
         )
+
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ
