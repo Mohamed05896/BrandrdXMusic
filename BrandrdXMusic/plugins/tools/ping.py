@@ -10,8 +10,14 @@ from BrandrdXMusic.utils.decorators.language import language
 from BrandrdXMusic.utils.inline import supp_markup
 from config import BANNED_USERS, PING_IMG_URL
 
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅَا
 
-@app.on_message(filters.command(["ping", "alive"]) & ~BANNED_USERS)
+@app.on_message(
+    (
+        filters.command(["ping", "alive"]) | 
+        filters.regex(r"^(بينج|بنج|تست)$")
+    ) & ~BANNED_USERS
+)
 @language
 async def ping_com(client, message: Message, _):
     start = datetime.now()
@@ -23,6 +29,6 @@ async def ping_com(client, message: Message, _):
     UP, CPU, RAM, DISK = await bot_sys_stats()
     resp = (datetime.now() - start).microseconds / 1000
     await response.edit_text(
-        _["ping_2"].format(resp, app.mention, UP, RAM, CPU, DISK, pytgping),
+        _["ping_2"].format(resp, app.mention, UP, RAM, CPU, DISK, pytgping) + "\n\n➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅَا",
         reply_markup=supp_markup(_),
     )
