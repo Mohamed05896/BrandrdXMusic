@@ -4,72 +4,45 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pyrogram import filters
 from pyrogram.types import Message
 
-# استدعاء الملفات المطلوبة من السورس
-try:
-    import config
-    from config import BANNED_USERS, COMMAND_PREFIXES
-    from BrandrdXMusic import app
-    from BrandrdXMusic.utils.database import get_served_chats
-    from BrandrdXMusic.utils.stream.stream import stream
-except ImportError:
-    pass
+# استدعاء ملفات السورس الأساسية
+import config
+from config import BANNED_USERS, COMMAND_PREFIXES
+from BrandrdXMusic import app
+from BrandrdXMusic.utils.database import get_served_chats
+from BrandrdXMusic.utils.stream.stream import stream
 
-# 🕌 بيانات الأذان (توقيت القاهرة)
+# 🕌 بيانات الأذان (توقيت القاهرة المحدث)
 AZAN_DATA = {
-    "الفجر": {
-        "time": "05:19",
-        "url": "https://youtu.be/4vV5aV6YK14",
-        "video": True,
-        "sticker": "CAACAgQAAyEFAATHCHTJAAIJD2lOq8aLkRR49evBKiITWWhwtgEoAALoGgACp_FYUQuzqVH-JHS5HgQ"
-    },
-    "الظهر": {
-        "time": "11:58",
-        "url": "https://youtu.be/21MuvFr7CK8",
-        "video": False,
-        "sticker": "CAACAgQAAyEFAATHCHTJAAIJEWlOrFKzjSDZeWfl6U3F-lrKldRXAAJMGwACMVlYUa15CORC0p0xHgQ"
-    },
-    "العصر": {
-        "time": "14:45",
-        "url": "https://youtu.be/bb6cNncMdiM",
-        "video": False,
-        "sticker": "CAACAgQAAyEFAATHCHTJAAIJE2lOrFRQIbcdLfnpdl5PtbdqNyR6AALFGQAC3ZZRUcK5YivXbwUAAR4E"
-    },
-    "المغرب": {
-        "time": "16:59",
-        "url": "https://youtu.be/bb6cNncMdiM",
-        "video": False,
-        "sticker": "CAACAgQAAyEFAATHCHTJAAIJFWlOrFT4eOnPJDsSuU6Ya-V0WPQdAALfFwACcIVQUX6NcNNCxvdRHgQ"
-    },
-    "العشاء": {
-        "time": "18:22",
-        "url": "https://youtu.be/7xau5N3GYAo",
-        "video": False,
-        "sticker": "CAACAgQAAyEFAATHCHTJAAIJF2lOrFVxhRGefHki3d4s-hLC9cKHAALqHAAC3oZQUWqQdvdwXnGLHgQ"
-    }
+    "الفجر": {"time": "05:19", "url": "https://youtu.be/4vV5aV6YK14", "video": True, "sticker": "CAACAgQAAyEFAATHCHTJAAIJD2lOq8aLkRR49evBKiITWWhwtgEoAALoGgACp_FYUQuzqVH-JHS5HgQ"},
+    "الظهر": {"time": "11:58", "url": "https://youtu.be/21MuvFr7CK8", "video": False, "sticker": "CAACAgQAAyEFAATHCHTJAAIJEWlOrFKzjSDZeWfl6U3F-lrKldRXAAJMGwACMVlYUa15CORC0p0xHgQ"},
+    "العصر": {"time": "14:45", "url": "https://youtu.be/bb6cNncMdiM", "video": False, "sticker": "CAACAgQAAyEFAATHCHTJAAIJE2lOrFRQIbcdLfnpdl5PtbdqNyR6AALFGQAC3ZZRUcK5YivXbwUAAR4E"},
+    "المغرب": {"time": "16:59", "url": "https://youtu.be/bb6cNncMdiM", "video": False, "sticker": "CAACAgQAAyEFAATHCHTJAAIJFWlOrFT4eOnPJDsSuU6Ya-V0WPQdAALfFwACcIVQUX6NcNNCxvdRHgQ"},
+    "العشاء": {"time": "18:22", "url": "https://youtu.be/7xau5N3GYAo", "video": False, "sticker": "CAACAgQAAyEFAATHCHTJAAIJF2lOrFVxhRGefHki3d4s-hLC9cKHAALqHAAC3oZQUWqQdvdwXnGLHgQ"}
 }
 
+# ذاكرة تخزين الجروبات المفعلة
 active_azan_chats = set()
 
 async def broadcast_azan(prayer_name):
+    """دالة البث التلقائي لجميع الجروبات المفعلة"""
     details = AZAN_DATA[prayer_name]
-    served_chats = await get_served_chats()
+    all_chats = await get_served_chats()
     
-    for chat in served_chats:
-        # تصحيح الخطأ: التأكد من نوع البيانات المستلمة من الداتابيز
-        if isinstance(chat, dict):
-            chat_id = chat.get("chat_id")
-        else:
-            chat_id = chat # إذا كان رقم آيدي مباشر
-            
-        if chat_id and chat_id in active_azan_chats:
+    for chat in all_chats:
+        chat_id = chat["chat_id"] if isinstance(chat, dict) else chat
+        
+        if chat_id in active_azan_chats:
             try:
                 await app.send_sticker(chat_id, details["sticker"])
-                await app.send_message(
-                    chat_id, 
-                    f"<b>🕌 حان الآن وقت أذان {prayer_name} حسب توقيت القاهرة</b>"
-                )
+                await app.send_message(chat_id, f"<b>🕌 حان الآن وقت أذان {prayer_name} حسب توقيت القاهرة</b>")
+                
                 await stream(
-                    None, None, app.id, details["url"], chat_id, "نظام الأذان", chat_id,
+                    None, 
+                    chat_id, 
+                    details["url"], 
+                    chat_id, 
+                    f"أذان {prayer_name}", 
+                    chat_id,
                     video=details["video"],
                     streamtype="youtube",
                     forceplay=True
@@ -77,10 +50,11 @@ async def broadcast_azan(prayer_name):
             except Exception:
                 continue
 
+# ضبط المجدول الزمني
 scheduler = AsyncIOScheduler(timezone="Africa/Cairo")
 for prayer, info in AZAN_DATA.items():
-    hour, minute = map(int, info["time"].split(":"))
-    scheduler.add_job(broadcast_azan, "cron", hour=hour, minute=minute, args=[prayer])
+    h, m = map(int, info["time"].split(":"))
+    scheduler.add_job(broadcast_azan, "cron", hour=h, minute=m, args=[prayer])
 
 if not scheduler.running:
     scheduler.start()
@@ -88,26 +62,31 @@ if not scheduler.running:
 # --- أوامر التحكم ---
 
 @app.on_message(filters.command(["تفعيل الاذان", "تفعيل بث الصلاة"], COMMAND_PREFIXES) & filters.group & ~BANNED_USERS)
-async def azan_enable_cmd(_, message: Message):
+async def azan_enable(_, message: Message):
     active_azan_chats.add(message.chat.id)
-    await message.reply_text("<b>✅ تم تفعيل نظام بث الأذان التلقائي بنجاح.</b>")
+    await message.reply_text("<b>✅ تم تفعيل نظام الأذان التلقائي بنجاح.</b>")
 
 @app.on_message(filters.command(["تعطيل الاذان", "إيقاف بث الصلاة"], COMMAND_PREFIXES) & filters.group & ~BANNED_USERS)
-async def azan_disable_cmd(_, message: Message):
+async def azan_disable(_, message: Message):
     if message.chat.id in active_azan_chats:
         active_azan_chats.remove(message.chat.id)
-    await message.reply_text("<b>❌ تم إيقاف نظام بث الأذان.</b>")
+    await message.reply_text("<b>❌ تم إيقاف نظام الأذان.</b>")
 
-@app.on_message(filters.command(["تست صلاة"], COMMAND_PREFIXES) & filters.group & ~BANNED_USERS)
-async def azan_test_cmd(_, message: Message):
-    prayer = "الفجر"
-    details = AZAN_DATA[prayer]
+@app.on_message(filters.command("تست اذان", COMMAND_PREFIXES) & filters.group & ~BANNED_USERS)
+async def azan_test(client, message: Message):
+    """أمر تجربة البث الفوري"""
+    details = AZAN_DATA["الفجر"]
     await message.reply_sticker(details["sticker"])
-    await message.reply_text(f"<b>⚙️ تجربة نظام الأذان (صلاة {prayer})</b>")
+    await message.reply_text("<b>⚙️ جاري تجربة بث الأذان... انتظر دخول المساعد</b>")
+    
     try:
-        # تصحيح البراميتر الأول في دالة stream ليتوافق مع السورس
         await stream(
-            _, message, None, details["url"], message.chat.id, "تجربة الأذان", message.chat.id,
+            client,
+            message.from_user.id if message.from_user else 0,
+            details["url"],
+            message.chat.id,
+            "تجربة الأذان",
+            message.chat.id,
             video=details["video"],
             streamtype="youtube",
             forceplay=True
