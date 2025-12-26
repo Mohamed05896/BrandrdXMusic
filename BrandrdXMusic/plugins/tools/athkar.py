@@ -3,6 +3,8 @@ from pyrogram import filters
 from pyrogram.types import Message
 from BrandrdXMusic import app
 
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅَا
+
 # قائمة الأذكار
 ATHKAR = [
     "أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ، وَالْحَمْدُ لِلَّهِ، لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ، وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ.",
@@ -41,4 +43,9 @@ ATHKAR = [
 async def athkar_sabah_only(client, message: Message):
     # هيستجيب فقط لو الرسالة "اذكار الصباح"
     if message.text.strip() == "اذكار الصباح":
-        await message.reply_text(random.choice(ATHKAR))
+        await message.reply_text(f"{random.choice(ATHKAR)}\n\n➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅَا")
+    
+    # التعارض بيتحل هنا عشان باقي الأوامر تشتغل
+    message.continue_propagation()
+
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅَا
