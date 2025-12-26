@@ -23,6 +23,8 @@ from BrandrdXMusic.utils.inline import help_pannel, private_panel, start_panel
 from config import BANNED_USERS
 from strings import get_string
 
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅَا
+
 @app.on_message(filters.command(["start"]) & filters.private & ~BANNED_USERS)
 @LanguageStart
 async def start_pm(client, message: Message, _):
@@ -32,9 +34,8 @@ async def start_pm(client, message: Message, _):
         name = message.text.split(None, 1)[1]
         if name[0:4] == "help":
             keyboard = help_pannel(_)
-            # الاستيكر الجديد مع جملة المساعدة وعلامتك
+            # تم حذف نص المساعدة هنا
             await message.reply_sticker("CAACAgUAAxkBApLnNGlLUkfxsOU2qtE-nFtuobU6gwdNAAILFQAC-vEZVMBmWHCQ-sJuNgQ")
-            await message.reply_text("**لروئية الاوامر اكتب /help 💖**\n\n➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ")
             return await message.reply_photo(
                 photo=config.START_IMG_URL,
                 caption=_["help_1"].format(config.SUPPORT_CHAT),
@@ -89,7 +90,6 @@ async def start_pm(client, message: Message, _):
 
         try:
             out = private_panel(_)
-            # ترحيب معرب
             lol = await message.reply_text("✨ منور يا {}.. ❣️".format(message.from_user.mention))
             await asyncio.sleep(0.4)
             await lol.edit_text("✨ أهلاً بك {}.. 🥳".format(message.from_user.mention))
@@ -98,7 +98,6 @@ async def start_pm(client, message: Message, _):
                
             await lol.delete()
             lols = await message.reply_text("**⚡ ج**")
-            # سرعة هادية للتحميل
             await asyncio.sleep(0.4)
             await lols.edit_text("**⚡ جا**")        
             await asyncio.sleep(0.4)
@@ -116,21 +115,20 @@ async def start_pm(client, message: Message, _):
             await asyncio.sleep(0.4)
             await lols.edit_text("**⚡ جاري التحميل....**")
 
-            # الاستيكر الجديد مع جملة المساعدة وعلامتك
+            # تم حذف نص المساعدة هنا وترك الاستيكر
             m = await message.reply_sticker("CAACAgUAAxkBApLnNGlLUkfxsOU2qtE-nFtuobU6gwdNAAILFQAC-vEZVMBmWHCQ-sJuNgQ")
-            await message.reply_text("**لروئية الاوامر اكتب /help 💖**\n\n➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ")
             
-            if message.chat.photo:
-                userss_photo = await app.download_media(
-                    message.chat.photo.big_file_id,
-                )
-            else:
-                userss_photo = "assets/nodp.png"
-            
-            chat_photo = userss_photo if userss_photo else config.START_IMG_URL
+            try:
+                photos = await client.get_chat_photos(message.from_user.id, limit=1)
+                if photos:
+                    chat_photo = photos[0].file_id
+                else:
+                    chat_photo = config.START_IMG_URL
+            except:
+                chat_photo = config.START_IMG_URL
 
-        except AttributeError:
-            chat_photo = "assets/nodp.png"
+        except Exception:
+            chat_photo = config.START_IMG_URL
         
         await lols.delete()
         await m.delete()
@@ -201,3 +199,5 @@ async def welcome(client, message: Message):
                 await message.stop_propagation()
         except Exception as ex:
             print(ex)
+
+# ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅَا
