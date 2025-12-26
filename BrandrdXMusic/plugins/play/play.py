@@ -334,6 +334,11 @@ async def play_commnd(
         except:
             return await mystic.edit_text(_["play_3"])
         streamtype = "youtube"
+
+        # تصليح الفيديو المباشر بالأوامر العربية والانجليزية
+        if message.command[0] in ["vplay", "فيديو", "cvplay", "vplayforce", "cvplayforce"]:
+            video = True
+
     if str(playmode) == "Direct":
         if not plist_type:
             if details["duration_min"]:
@@ -560,22 +565,22 @@ async def play_playlists_command(client, CallbackQuery, _):
             )
         except:
             return await mystic.edit_text(_["play_3"])
-    if ptype == "spplay":
+    elif ptype == "spplay":
         try:
             result, spotify_id = await Spotify.playlist(videoid)
         except:
             return await mystic.edit_text(_["play_3"])
-    if ptype == "spalbum":
+    elif ptype == "spalbum":
         try:
             result, spotify_id = await Spotify.album(videoid)
         except:
             return await mystic.edit_text(_["play_3"])
-    if ptype == "spartist":
+    elif ptype == "spartist":
         try:
             result, spotify_id = await Spotify.artist(videoid)
         except:
             return await mystic.edit_text(_["play_3"])
-    if ptype == "apple":
+    elif ptype == "apple":
         try:
             result, apple_id = await Apple.playlist(videoid, True)
         except:
@@ -662,4 +667,4 @@ async def slider_queries(client, CallbackQuery, _):
         )
         return await CallbackQuery.edit_message_media(
             media=med, reply_markup=InlineKeyboardMarkup(buttons)
-)
+        )
