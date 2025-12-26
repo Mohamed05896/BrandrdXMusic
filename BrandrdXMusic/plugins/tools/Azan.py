@@ -3,15 +3,36 @@ from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pyrogram import filters
 from pyrogram.types import Message
+from motor.motor_asyncio import AsyncIOMotorClient
 
-# استدعاء ملفات السورس الأساسية
+# استدعاء ملفات السورس
 import config
-from config import BANNED_USERS, COMMAND_PREFIXES
+from config import BANNED_USERS, COMMAND_PREFIXES, MONGO_DB_URI
 from BrandrdXMusic import app
 from BrandrdXMusic.utils.database import get_served_chats
 from BrandrdXMusic.utils.stream.stream import stream
 
-# 🕌 بيانات الأذان (توقيت القاهرة) - محدثة 2025
+# --- إعداد قاعدة البيانات (الحل الدائم) ---
+mongodb = AsyncIOMotorClient(MONGO_DB_URI)
+azan_db = mongodb.BrandrdX.azan_chats
+
+async def is_azan_on(chat_id: int) -> bool:
+    chat = await azan_db.find_one({"chat_id": chat_id})
+    return bool(chat)
+
+async def add_azan(chat_id: int):
+    await azan_db.update_one({"chat_id": chat_id}, {"$set": {"chat_id": chat_id}}, upsert=True)
+
+async def remove_azan(chat_id: int):
+    await azan_db.delete_one({"chat_id": chat_id})
+
+async def get_all_azan_chats():
+    chats = []
+    async for chat in azan_db.find():
+        chats.append(chat["chat_id"])
+    return chats
+
+# 🕌 بيانات الأذان
 AZAN_DATA = {
     "الفجر": {"time": "05:19", "url": "https://youtu.be/4vV5aV6YK14", "video": True, "sticker": "CAACAgQAAyEFAATHCHTJAAIJD2lOq8aLkRR49evBKiITWWhwtgEoAALoGgACp_FYUQuzqVH-JHS5HgQ"},
     "الظهر": {"time": "11:58", "url": "https://youtu.be/21MuvFr7CK8", "video": False, "sticker": "CAACAgQAAyEFAATHCHTJAAIJEWlOrFKzjSDZeWfl6U3F-lrKldRXAAJMGwACMVlYUa15CORC0p0xHgQ"},
@@ -20,86 +41,64 @@ AZAN_DATA = {
     "العشاء": {"time": "18:22", "url": "https://youtu.be/7xau5N3GYAo", "video": False, "sticker": "CAACAgQAAyEFAATHCHTJAAIJF2lOrFVxhRGefHki3d4s-hLC9cKHAALqHAAC3oZQUWqQdvdwXnGLHgQ"}
 }
 
-# ذاكرة الجروبات المفعلة (تُصفر عند ريستارت Fly.io)
-active_azan_chats = set()
-
 async def broadcast_azan(prayer_name):
-    """دالة إرسال الأذان لكل الجروبات المفعلة"""
     details = AZAN_DATA[prayer_name]
-    all_chats = await get_served_chats()
+    active_chats = await get_all_azan_chats()
     
-    for chat in all_chats:
-        # استخراج ID الجروب بدقة
-        chat_id = chat["chat_id"] if isinstance(chat, dict) else chat
-        
-        if chat_id in active_azan_chats:
-            try:
-                # 1. إرسال الملصق والرسالة التنبيهية
-                await app.send_sticker(chat_id, details["sticker"])
-                await app.send_message(chat_id, f"<b>🕌 حان الآن وقت أذان {prayer_name} حسب توقيت القاهرة</b>")
-                
-                # 2. تشغيل البث الصوتي (الترتيب المطابق لسورس بودا)
-                # البراميترات: client, user_id, link, chat_id, title, duration, original_chat_id
-                await stream(
-                    None,              # client
-                    app.id,            # user_id
-                    details["url"],    # link
-                    chat_id,           # chat_id
-                    f"أذان {prayer_name}", # title
-                    None,              # duration (مهم لضبط الترتيب)
-                    chat_id,           # original_chat_id
-                    video=details["video"],
-                    streamtype="youtube",
-                    forceplay=True
-                )
-                await asyncio.sleep(1) # تأخير بسيط لتجنب الحظر
-            except Exception:
-                continue
+    for chat_id in active_chats:
+        try:
+            await app.send_sticker(chat_id, details["sticker"])
+            await app.send_message(chat_id, f"<b>🕌 حان الآن وقت أذان {prayer_name} حسب توقيت القاهرة</b>")
+            
+            await stream(
+                None, app.id, details["url"], chat_id, f"أذان {prayer_name}", 
+                None, chat_id, video=details["video"], streamtype="youtube", forceplay=True
+            )
+            await asyncio.sleep(2)
+        except:
+            continue
 
-# ضبط المجدول الزمني على توقيت مصر
+# المجدول الزمني
 scheduler = AsyncIOScheduler(timezone="Africa/Cairo")
 for prayer, info in AZAN_DATA.items():
-    hour, minute = map(int, info["time"].split(":"))
-    scheduler.add_job(broadcast_azan, "cron", hour=hour, minute=minute, args=[prayer])
+    h, m = map(int, info["time"].split(":"))
+    scheduler.add_job(broadcast_azan, "cron", hour=h, minute=m, args=[prayer])
 
 if not scheduler.running:
     scheduler.start()
 
-# --- أوامر التفعيل والتحكم ---
+# --- أوامر التحكم ---
 
 @app.on_message(filters.command(["تفعيل الاذان", "تفعيل الصلاة"], COMMAND_PREFIXES) & filters.group & ~BANNED_USERS)
-async def azan_enable(_, message: Message):
-    active_azan_chats.add(message.chat.id)
-    await message.reply_text(f"<b>✅ تم تفعيل الأذان التلقائي في: {message.chat.title}</b>")
+async def azan_on_cmd(_, message: Message):
+    if await is_azan_on(message.chat.id):
+        return await message.reply_text("<b>⚠️ الأذان مفعل بالفعل في هذا الجروب.</b>")
+    await add_azan(message.chat.id)
+    await message.reply_text(f"<b>✅ تم تفعيل الأذان التلقائي بنجاح.\n\nسيتم البث في مواقيت الصلاة بتوقيت القاهرة.</b>")
 
-@app.on_message(filters.command(["تعطيل الاذان"], COMMAND_PREFIXES) & filters.group & ~BANNED_USERS)
-async def azan_disable(_, message: Message):
-    active_azan_chats.discard(message.chat.id)
-    await message.reply_text(f"<b>❌ تم تعطيل الأذان التلقائي في: {message.chat.title}</b>")
+@app.on_message(filters.command(["تعطيل الاذان", "ايقاف الاذان"], COMMAND_PREFIXES) & filters.group & ~BANNED_USERS)
+async def azan_off_cmd(_, message: Message):
+    if not await is_azan_on(message.chat.id):
+        return await message.reply_text("<b>⚠️ الأذان غير مفعل هنا.</b>")
+    await remove_azan(message.chat.id)
+    await message.reply_text("<b>❌ تم تعطيل الأذان التلقائي.</b>")
 
-@app.on_message(filters.command(["تست اذان", "تجربة الاذان"], COMMAND_PREFIXES) & filters.group & ~BANNED_USERS)
+@app.on_message(filters.command("تست اذان", COMMAND_PREFIXES) & filters.group & ~BANNED_USERS)
 async def azan_test(client, message: Message):
-    """أمر لتجربة تشغيل الأذان فوراً"""
-    details = AZAN_DATA["الفجر"] # نستخدم الفجر كنموذج للتجربة
-    
-    await message.reply_text("<b>⚙️ جاري محاكاة الأذان وتجربة البث...</b>")
-    
+    details = AZAN_DATA["الفجر"]
+    await message.reply_text("<b>⚙️ جاري التجربة... انتظر دخول المساعد</b>")
     try:
-        await message.reply_sticker(details["sticker"])
-        
-        # استدعاء دالة الـ stream بالترتيب الذي وجدناه في سورس محمد
         await stream(
-            client,                                           # client
-            message.from_user.id if message.from_user else 0, # user_id
-            details["url"],                                   # link
-            message.chat.id,                                  # chat_id
-            "تجربة الأذان التلقائي",                            # title
-            None,                                             # duration
-            message.chat.id,                                  # original_chat_id
-            video=details["video"],
-            streamtype="youtube",
+            client, 
+            message.from_user.id if message.from_user else 0, 
+            details["url"], 
+            message.chat.id, 
+            "تجربة الأذان", 
+            None, 
+            message.chat.id, 
+            video=details["video"], 
+            streamtype="youtube", 
             forceplay=True
         )
     except Exception as e:
-        await message.reply_text(f"<b>❌ حدث خطأ أثناء التست:</b>\n<code>{e}</code>")
-
+        await message.reply_text(f"❌ حدث خطأ: {e}")
