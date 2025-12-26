@@ -2,10 +2,13 @@ import asyncio
 from pyrogram import filters, enums
 from pyrogram.types import Message
 from BrandrdXMusic import app
-from BrandrdXMusic.misc import SUDO_USERS
-from BrandrdXMusic.utils.database import is_group_admin
+from BrandrdXMusic.misc import SUDOERS 
 
-# --- قاموس الأوامر والأنواع (كلها فعالة ومجربة) ---
+# مخزن الأقفال والتحذيرات (في الرام)
+smart_db = {} 
+user_warns = {}
+
+# قائمة كل الأوامر المتاحة في الكود
 LOCK_TYPES = {
     "الروابط": "links",
     "المعرفات": "usernames",
@@ -21,105 +24,131 @@ LOCK_TYPES = {
     "البوتات": "bots",
     "الموقع": "location",
     "الاتصال": "contact",
-    "الكل": "all"
+    "المجموعة": "full_lock",
+    "الشات": "text_lock"
 }
 
-# تخزين البيانات (يفضل ربطها بـ Mongo لاحقاً لضمان الثبات)
-locked_db = {}
+# دالة التحقق من رتبة المستخدم (رسمي)
+async def is_admin(chat_id, user_id):
+    if user_id in SUDOERS: return True
+    try:
+        member = await app.get_chat_member(chat_id, user_id)
+        return member.status in [enums.ChatMemberStatus.ADMINISTRATOR, enums.ChatMemberStatus.OWNER]
+    except: return False
 
-# 1. أمر القفل
+# --- 1. أوامر القفل ---
 @app.on_message(filters.command(["قفل", "lock"], "") & filters.group)
-async def lock_cmd(client, message: Message):
-    chat_id = message.chat.id
-    if not await is_group_admin(chat_id, message.from_user.id) and message.from_user.id not in SUDO_USERS:
-        return await message.reply_text("<b>⚠️ عذراً، هذا الأمر للمشرفين فقط!</b>")
-
+async def lock_cmd(_, message: Message):
+    if not await is_admin(message.chat.id, message.from_user.id):
+        return
+    
     if len(message.command) < 2:
-        return await message.reply_text("<b>⚠️ يرجى تحديد نوع القفل.\nمثال: `قفل الروابط`</b>")
-
+        return await message.reply_text("<b>⚠️ يرجى تحديد نوع القفل.\n• مثال: <code>قفل المجموعة</code> أو <code>قفل الروابط</code></b>")
+    
     target = message.command[1]
     if target not in LOCK_TYPES:
-        return await message.reply_text("<b>❌ نوع غير صحيح! استعرض الأنواع عبر: `انواع القفل`</b>")
-
-    if chat_id not in locked_db:
-        locked_db[chat_id] = set()
-
-    locked_db[chat_id].add(target)
+        return await message.reply_text("<b>❌ هذا النوع غير موجود. اكتب <code>انواع القفل</code> لرؤية القائمة.</b>")
+    
+    chat_id = message.chat.id
+    if chat_id not in smart_db: smart_db[chat_id] = set()
+    
+    smart_db[chat_id].add(target)
     await message.reply_text(f"<b>✅ تم قفل {target} بنجاح.</b>")
 
-# 2. أمر الفتح
+# --- 2. أوامر الفتح ---
 @app.on_message(filters.command(["فتح", "unlock"], "") & filters.group)
-async def unlock_cmd(client, message: Message):
-    chat_id = message.chat.id
-    if not await is_group_admin(chat_id, message.from_user.id) and message.from_user.id not in SUDO_USERS:
-        return await message.reply_text("<b>⚠️ هذا الأمر للمشرفين فقط!</b>")
-
+async def unlock_cmd(_, message: Message):
+    if not await is_admin(message.chat.id, message.from_user.id):
+        return
+    
     if len(message.command) < 2:
-        return await message.reply_text("<b>⚠️ حدد النوع لفتحه.\nمثال: `فتح الروابط`</b>")
-
+        return await message.reply_text("<b>⚠️ يرجى تحديد النوع لفتحه.\n• مثال: <code>فتح الشات</code></b>")
+    
     target = message.command[1]
-    if chat_id in locked_db and target in locked_db[chat_id]:
-        locked_db[chat_id].remove(target)
-        return await message.reply_text(f"<b>🔓 تم فتح {target} بنجاح.</b>")
-    
-    await message.reply_text("<b>⚠️ هذا النوع غير مقفل أصلاً.</b>")
-
-# 3. عرض الأقفال النشطة
-@app.on_message(filters.command(["الاعدادات", "locks"], "") & filters.group)
-async def list_locked(client, message: Message):
     chat_id = message.chat.id
-    if chat_id not in locked_db or not locked_db[chat_id]:
-        return await message.reply_text("<b>🛡️ المجموعة مفتوحة بالكامل، لا توجد أقفال.</b>")
-    
-    active = "\n".join([f"• <code>{l}</code>" for l in locked_db[chat_id]])
-    await message.reply_text(f"<b>🛡️ الأقفال النشطة حالياً:</b>\n\n{active}")
+    if chat_id in smart_db and target in smart_db[chat_id]:
+        smart_db[chat_id].remove(target)
+        await message.reply_text(f"<b>🔓 تم فتح {target} بنجاح.</b>")
+    else:
+        await message.reply_text(f"<b>⚠️ {target} غير مقفل بالفعل.</b>")
 
-# 4. محرك الحذف (أهم جزء ليكون البوت فعالاً)
-@app.on_message(filters.group & ~filters.me, group=5)
-async def watcher(client, message: Message):
+# --- 3. محرك الحماية والحذف الذكي ---
+@app.on_message(filters.group & ~filters.me, group=1)
+async def smart_watcher(client, message: Message):
     chat_id = message.chat.id
-    if chat_id not in locked_db or not locked_db[chat_id]:
+    user_id = message.from_user.id if message.from_user else None
+    
+    if chat_id not in smart_db or not user_id or await is_admin(chat_id, user_id):
         return
 
-    # المشرفين لا يطبق عليهم الحذف
-    if message.from_user:
-        if await is_group_admin(chat_id, message.from_user.id) or message.from_user.id in SUDO_USERS:
-            return
+    locks = smart_db[chat_id]
+    reason = None
 
-    locks = locked_db[chat_id]
-    delete = False
-
-    # فحص المحتوى
-    if "الكل" in locks: delete = True
-    if "الروابط" in locks and (message.entities or message.caption_entities):
-        for e in (message.entities or message.caption_entities or []):
-            if e.type in [enums.MessageEntityType.URL, enums.MessageEntityType.TEXT_LINK]: delete = True
-    if "المعرفات" in locks and any(e.type == enums.MessageEntityType.MENTION for e in (message.entities or [])): delete = True
-    if "التاجات" in locks and any(e.type == enums.MessageEntityType.HASHTAG for e in (message.entities or [])): delete = True
+    # أولوية القفل الشامل (المجموعة)
+    if "المجموعة" in locks:
+        reason = "المجموعة مقفولة حالياً 🔒"
     
-    if "الملصقات" in locks and message.sticker: delete = True
-    if "الصور" in locks and message.photo: delete = True
-    if "الفيديو" in locks and message.video: delete = True
-    if "المتحركة" in locks and message.animation: delete = True
-    if "الموسيقى" in locks and message.audio: delete = True
-    if "البصمات" in locks and message.voice: delete = True
-    if "الملفات" in locks and message.document: delete = True
-    if "التوجيه" in locks and message.forward_date: delete = True
-    if "الموقع" in locks and message.location: delete = True
-    if "الاتصال" in locks and message.contact: delete = True
+    # أولوية قفل الشات (النصوص)
+    elif "الشات" in locks and message.text:
+        reason = "إرسال الرسائل النصية مقفل 📵"
 
-    # التعامل مع البوتات (طرد فوري)
-    if "البوتات" in locks and message.new_chat_members:
-        for m in message.new_chat_members:
-            if m.is_bot:
-                try:
-                    await message.chat.ban_member(m.id)
-                    await message.reply_text(f"<b>🚫 طردت البوت {m.mention} (قفل البوتات مفعل).</b>")
-                except: pass
-                delete = True
+    # الأقفال الفرعية
+    else:
+        if "الروابط" in locks and (message.entities or message.caption_entities):
+            for e in (message.entities or message.caption_entities or []):
+                if e.type in [enums.MessageEntityType.URL, enums.MessageEntityType.TEXT_LINK]:
+                    reason = "الروابط ممنوعة حالياً 🚫"
+        
+        if "الملصقات" in locks and message.sticker: reason = "الملصقات مقفولة 🖼️"
+        if "الصور" in locks and message.photo: reason = "إرسال الصور ممنوع 📸"
+        if "الفيديو" in locks and message.video: reason = "الفيديو مقفول 🎥"
+        if "التوجيه" in locks and message.forward_date: reason = "التوجيه غير مسموح 🔄"
+        if "البصمات" in locks and message.voice: reason = "البصمات الصوتية مقفولة 🎤"
+        if "الموسيقى" in locks and message.audio: reason = "الموسيقى مقفولة 🎵"
+        if "المتحركة" in locks and message.animation: reason = "الصور المتحركة مقفولة 👾"
+        if "المعطيات" in locks and message.contact: reason = "تبادل جهات الاتصال مقفل 📞"
+        if "الموقع" in locks and message.location: reason = "مشاركة الموقع مقفولة 📍"
+        if "المعرفات" in locks and any(e.type == enums.MessageEntityType.MENTION for e in (message.entities or [])):
+            reason = "المعرفات ممنوعة 📧"
 
-    if delete:
+    if reason:
         try:
             await message.delete()
-        except Exception:
-            pass
+            warn_key = f"{chat_id}:{user_id}"
+            if warn_key not in user_warns:
+                alert = await message.reply_text(f"<b>⚠️ عذراً {message.from_user.mention}، {reason}</b>")
+                user_warns[warn_key] = True
+                await asyncio.sleep(4) 
+                await alert.delete()
+                await asyncio.sleep(6)
+                user_warns.pop(warn_key, None)
+        except: pass
+
+# --- 4. طرد البوتات التلقائي ---
+@app.on_message(filters.group & filters.new_chat_members)
+async def auto_bot_kick(client, message: Message):
+    chat_id = message.chat.id
+    if chat_id in smart_db and "البوتات" in smart_db[chat_id]:
+        for member in message.new_chat_members:
+            if member.is_bot:
+                try:
+                    await message.chat.ban_member(member.id)
+                    await message.reply_text(f"<b>🚫 تم طرد البوت {member.mention} بنجاح.</b>")
+                except: pass
+
+# --- 5. عرض الإعدادات والأنواع ---
+@app.on_message(filters.command(["الاعدادات", "locks"], "") & filters.group)
+async def list_locks_status(_, message: Message):
+    chat_id = message.chat.id
+    if chat_id not in smart_db or not smart_db[chat_id]:
+        return await message.reply_text("<b>🛡️ لا توجد أقفال نشطة، المجموعة مفتوحة بالكامل.</b>")
+    
+    active = " ، ".join([f"<code>{l}</code>" for l in smart_db[chat_id]])
+    await message.reply_text(f"<b>🛡️ الأقفال النشطة حالياً:\n\n{active}</b>")
+
+@app.on_message(filters.command(["انواع القفل", "locktypes"], ""))
+async def lock_types_list(_, message: Message):
+    text = "<b>🔒 أنواع الأقفال المتاحة في البوت:</b>\n\n"
+    text += "• <code>" + "</code>\n• <code>".join(LOCK_TYPES.keys()) + "</code>\n\n"
+    text += "<b>✅ مثال: <code>قفل المجموعة</code></b>"
+    await message.reply_text(text)
