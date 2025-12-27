@@ -27,14 +27,14 @@ LOCK_MAP = {
     "الماركدوان": "markdown", "التوجيه": "forward", "الاغاني": "audio",
     "الصوت": "voice", "الجهات": "contacts", "الاشعارات": "service",
     "السب": "porn", "الفشار": "porn", "الاباحي": "porn", "الوسائط": "media",
-    "الانكليزيه": "english", "الفارسيه": "persian", "دخول الايران": "persian",
-    "الدخول": "join", "جمثون": "gmthon", "التعديل": "edit",
-    "تعديل الميديا": "edit_media", "التفليش": "kick", "الحمايه": "antiraid", "المجموعة": "all"
+    "الانكليزيه": "english", "الفارسيه": "persian", "الدخول": "join",
+    "التعديل": "edit", "تعديل الميديا": "edit_media", "التفليش": "kick",
+    "الحمايه": "antiraid", "المجموعة": "all"
 }
 
 BAD_WORDS = ["سكس", "نيك", "شرموط", "منيوك", "كسم", "زب", "فحل", "بورن", "متناق", "مص", "كس", "طيز", "قحبه", "عير", "نيج", "خنيث", "لوطي", "خول"]
 
-# --- [ 2. دوال الـتـحـقـق والـحـمـاية والـرادار ] ---
+# --- [ 2. الـدوال الـمـسـاعـدة والـتـحـقـق ] ---
 
 def is_bad_context(text):
     if not text: return False
@@ -43,9 +43,6 @@ def is_bad_context(text):
     for word in words:
         for bad in BAD_WORDS:
             if fuzz.ratio(word, bad) > 85: return True
-    patterns = [r"تعال.*ننام", r"عايز.*انيك", r"هات.*صورة"]
-    for p in patterns:
-        if re.search(p, clean): return True
     return False
 
 def check_nudity(image_path):
@@ -73,109 +70,123 @@ async def has_permission(chat_id, user_id):
     if chat_id in whitelist and user_id in whitelist[chat_id]: return True
     return False
 
-# --- [ 3. أوامـر الـسـمـاح والـكـتـم والـتـحـذيـر ] ---
+# --- [ 3. بـنـاء الـكـيـبوردات ] ---
 
-@app.on_message(filters.command(["تحذير"], "") & filters.group)
-async def set_warn_limit(_, message: Message):
+def get_settings_keyboard(chat_id, target_id=None):
+    kb, row, active = [], [], smart_db.get(chat_id, set())
+    keys = list(LOCK_MAP.items())
+    for i in range(0, len(keys), 2):
+        name1, k1 = keys[i]
+        if k1 == "all": continue
+        row = [InlineKeyboardButton(f"{name1} {'✅' if k1 in active else '❌'}", callback_data=f"trg_{k1}")]
+        if i+1 < len(keys):
+            name2, k2 = keys[i+1]
+            if k2 != "all":
+                row.append(InlineKeyboardButton(f"{name2} {'✅' if k2 in active else '❌'}", callback_data=f"trg_{k2}"))
+        kb.append(row)
+    
+    all_cmd = "فـتـح الـكـل" if "all" in active else "قـفـل الـكـل"
+    kb.append([InlineKeyboardButton(all_cmd, callback_data="trg_all")])
+    
+    if target_id:
+        kb.append([InlineKeyboardButton("👤 إدارة الأعـضـاء 👤", callback_data=f"mng_{target_id}")])
+    
+    kb.append([InlineKeyboardButton("‹ إغـلاق الـلـوحـة ›", callback_data="close_settings")])
+    return InlineKeyboardMarkup(kb)
+
+def get_management_keyboard(target_id):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("كتم", callback_data=f"u_mute_{target_id}"), InlineKeyboardButton("فك كتم", callback_data=f"u_unmute_{target_id}")],
+        [InlineKeyboardButton("سماح", callback_data=f"u_allow_{target_id}"), InlineKeyboardButton("شد سماح", callback_data=f"u_disallow_{target_id}")],
+        [InlineKeyboardButton("🔙 الـعـودة لـلأقـفـال", callback_data=f"back_locks_{target_id}")],
+        [InlineKeyboardButton("‹ إغـلاق الـلـوحـة ›", callback_data="close_settings")]
+    ])
+
+# --- [ 4. مـعـالـج الأوامـر (كـتـابـة) ] ---
+
+@app.on_message(filters.command(["قفل", "فتح"], "") & filters.group)
+async def toggle_lock_text(_, message: Message):
     if not await is_admin(message.chat.id, message.from_user.id): return
     if len(message.command) < 2: return
-    try:
-        num = int(message.command[1])
-        warn_limits[message.chat.id] = num
-        await message.reply_text(f"<b>• تـم تـعـيـيـن حـد الـتـحـذيـرات : {num} 🤍 •</b>")
-    except: pass
+    cmd, target = message.command[0], message.text.split(None, 1)[1]
+    if target in LOCK_MAP:
+        key = LOCK_MAP[target]
+        if message.chat.id not in smart_db: smart_db[message.chat.id] = set()
+        if cmd == "قفل":
+            if key == "all": smart_db[message.chat.id].update(LOCK_MAP.values())
+            else: smart_db[message.chat.id].add(key)
+        else:
+            if key == "all": smart_db[message.chat.id].clear()
+            else: smart_db[message.chat.id].discard(key)
+        await message.reply_text(f"<b>• تـم {cmd} {target} بـنـجـاح 🤍 •</b>")
 
-@app.on_message(filters.command(["سماح"], "") & filters.group)
-async def allow_user_handler(_, message: Message):
+@app.on_message(filters.command(["كتم", "ميوت", "فك ميوت", "شد ميوت", "سماح", "شد سماح"], "") & filters.group)
+async def admin_text_cmds(_, message: Message):
     if not await is_admin(message.chat.id, message.from_user.id): return
     u_id = message.reply_to_message.from_user.id if message.reply_to_message else None
-    if u_id:
+    if not u_id: return
+    cmd = message.command[0]
+    if cmd in ["كتم", "ميوت"]:
+        await app.restrict_chat_member(message.chat.id, u_id, ChatPermissions(can_send_messages=False))
+        await message.reply("<b>• تـم كـتـم الـعـضـو 🤍 •</b>")
+    elif cmd in ["فك ميوت", "شد ميوت"]:
+        await app.restrict_chat_member(message.chat.id, u_id, ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True))
+        await message.reply("<b>• تـم فـك الـكـتـم 🤍 •</b>")
+    elif cmd == "سماح":
         if message.chat.id not in whitelist: whitelist[message.chat.id] = set()
         whitelist[message.chat.id].add(u_id)
-        await message.reply_text(f"<b>• تـم إعـطـاء سـمـاح لـلـعـضـو بـنـجـاح 🧚🤍 •</b>")
-
-@app.on_message(filters.command(["شد سماح"], "") & filters.group)
-async def revoke_allow_handler(_, message: Message):
-    if not await is_admin(message.chat.id, message.from_user.id): return
-    u_id = message.reply_to_message.from_user.id if message.reply_to_message else None
-    if u_id and message.chat.id in whitelist:
-        whitelist[message.chat.id].discard(u_id)
-        await message.reply_text(f"<b>• تـم شـد الـسـمـاح مـن الـعـضـو 🤍 •</b>")
-
-@app.on_message(filters.command(["ميوت", "كتم"], "") & filters.group)
-async def mute_user_handler(_, message: Message):
-    if not await is_admin(message.chat.id, message.from_user.id): return
-    u_id = message.reply_to_message.from_user.id if message.reply_to_message else None
-    if u_id and not await is_admin(message.chat.id, u_id):
-        await app.restrict_chat_member(message.chat.id, u_id, ChatPermissions(can_send_messages=False))
-        # تم حذف ايموجي الميوت بطلبك
-        await message.reply_text(f"<b>• تـم كـتـم الـعـضـو بـنـجـاح 🤍 •</b>")
-
-@app.on_message(filters.command(["شد ميوت", "فك ميوت"], "") & filters.group)
-async def unmute_user_handler(_, message: Message):
-    if not await is_admin(message.chat.id, message.from_user.id): return
-    u_id = message.reply_to_message.from_user.id if message.reply_to_message else None
-    if u_id:
-        await app.restrict_chat_member(message.chat.id, u_id, ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True, can_add_web_page_previews=True))
-        # تم حذف ايموجي فك الميوت بطلبك
-        await message.reply_text(f"<b>• تـم فـك الـكـتـم عـن الـعـضـو 🤍 •</b>")
-
-# --- [ 4. لـوحـة الإعـدادات الـمـزخـرفـة (انـلايـن) ] ---
+        await message.reply("<b>• تـم إعـطـاء سـمـاح 🧚🤍 •</b>")
+    elif cmd == "شد سماح":
+        if message.chat.id in whitelist: whitelist[message.chat.id].discard(u_id)
+        await message.reply("<b>• تـم شـد الـسـمـاح 🤍 •</b>")
 
 @app.on_message(filters.command(["الاعدادات", "locks"], "") & filters.group)
-async def settings_keyboard(_, message: Message):
+async def settings_cmd(_, message: Message):
     if not await is_admin(message.chat.id, message.from_user.id): return
-    kb, row, active = [], [], smart_db.get(message.chat.id, set())
-    for name, key in list(LOCK_MAP.items())[:24]:
-        if key == "all": continue
-        status = "مـقـفـول" if key in active else "مـفـتـوح"
-        row.append(InlineKeyboardButton(f"• {name} ⤶ {status} •", callback_data=f"trg_{key}"))
-        if len(row) == 2: kb.append(row); row = []
-    if row: kb.append(row)
-    all_cmd = "فـتـح الـكـل" if "all" in active else "قـفـل الـكـل"
-    kb.append([InlineKeyboardButton(f"‹ {all_cmd} ›", callback_data="trg_all")])
-    kb.append([InlineKeyboardButton("‹ إغـلاق الـلـوحـة ›", callback_data="close_settings")])
-    await message.reply_text(f"<b>• تـم فـتـح لـوحـة تـحـكـم : {message.chat.title} 🦋</b>", reply_markup=InlineKeyboardMarkup(kb))
+    t_id = message.reply_to_message.from_user.id if message.reply_to_message else None
+    await message.reply_text(f"<b>• إعـدادات مـجـمـوعـة : {message.chat.title} 🦋</b>", reply_markup=get_settings_keyboard(message.chat.id, t_id))
 
-@app.on_callback_query(filters.regex("^trg_") | filters.regex("close_settings"))
-async def handle_callback(_, cb: CallbackQuery):
+# --- [ 5. مـعـالـج الـكـول بـاك (انـلايـن) ] ---
+
+@app.on_callback_query(filters.regex("^(trg_|mng_|u_|back_locks_|close_settings)"))
+async def cb_handler(_, cb: CallbackQuery):
     c_id, u_id = cb.message.chat.id, cb.from_user.id
-    if not await is_admin(c_id, u_id): return await cb.answer("• لـلـمـشـرفـيـن فـقـط 🤍", show_alert=True)
-    if cb.data == "close_settings":
-        await cb.message.delete()
-        return await cb.answer("• تـم إغـلاق الإعـدادات •")
-    key = cb.data.replace("trg_", "")
-    if c_id not in smart_db: smart_db[c_id] = set()
-    if key == "all":
-        if "all" in smart_db[c_id]: smart_db[c_id].clear()
-        else: smart_db[c_id].update(LOCK_MAP.values())
-    else:
-        if key in smart_db[c_id]: smart_db[c_id].discard(key)
-        else: smart_db[c_id].add(key)
-    kb, row, active = [], [], smart_db.get(c_id, set())
-    for name, k in list(LOCK_MAP.items())[:24]:
-        if k == "all": continue
-        status = "مـقـفـول" if k in active else "مـفـتـوح"
-        row.append(InlineKeyboardButton(f"• {name} ⤶ {status} •", callback_data=f"trg_{k}"))
-        if len(row) == 2: kb.append(row); row = []
-    if row: kb.append(row)
-    kb.append([InlineKeyboardButton(f"‹ {'فـتـح الـكـل' if 'all' in active else 'قـفـل الـكـل'} ›", callback_data="trg_all")])
-    kb.append([InlineKeyboardButton("‹ إغـلاق الـلـوحـة ›", callback_data="close_settings")])
-    await cb.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(kb))
-    await cb.answer("• تـم تـحـديـث الـحـالـة •")
+    if not await is_admin(c_id, u_id): return await cb.answer("• للمشرفين فقط 🤍", show_alert=True)
+    if cb.data == "close_settings": return await cb.message.delete()
+    
+    if cb.data.startswith("trg_"):
+        key = cb.data.replace("trg_", "")
+        if c_id not in smart_db: smart_db[c_id] = set()
+        if key == "all":
+            if "all" in smart_db[c_id]: smart_db[c_id].clear()
+            else: smart_db[c_id].update(LOCK_MAP.values())
+        else:
+            if key in smart_db[c_id]: smart_db[c_id].discard(key)
+            else: smart_db[c_id].add(key)
+        await cb.message.edit_reply_markup(reply_markup=get_settings_keyboard(c_id))
+        await cb.answer("• تم التحديث •")
 
-@app.on_message(filters.command(["مسح", "مسح الشات"], "") & filters.group)
-async def clear_chat_cmd(_, message: Message):
-    if not await is_admin(message.chat.id, message.from_user.id): return
-    num = int(message.command[1]) if len(message.command) > 1 and message.command[1].isdigit() else 100
-    await message.delete()
-    async for msg in app.get_chat_history(message.chat.id, limit=num):
-        try: await msg.delete()
-        except: pass
-    t = await message.reply_text(f"<b>• تـم مـسـح {num} رسـالـة بـنـجـاح 🧹🤍 •</b>")
-    await asyncio.sleep(2); await t.delete()
+    elif cb.data.startswith("mng_"):
+        t_id = cb.data.split("_")[1]
+        await cb.message.edit_text(f"<b>• إدارة الـعـضـو : {t_id} 👤</b>", reply_markup=get_management_keyboard(t_id))
 
-# --- [ 5. الـمـحـرك الـحـديـدي والـرادار الـذكي ] ---
+    elif cb.data.startswith("back_locks_"):
+        t_id = cb.data.split("_")[2]
+        await cb.message.edit_text(f"<b>• إعـدادات مـجـمـوعـة : {cb.message.chat.title} 🦋</b>", reply_markup=get_settings_keyboard(c_id, t_id))
+
+    elif cb.data.startswith("u_"):
+        parts = cb.data.split("_")
+        act, target = parts[1], int(parts[2])
+        if act == "mute": await app.restrict_chat_member(c_id, target, ChatPermissions(can_send_messages=False))
+        elif act == "unmute": await app.restrict_chat_member(c_id, target, ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True))
+        elif act == "allow":
+            if c_id not in whitelist: whitelist[c_id] = set()
+            whitelist[c_id].add(target)
+        elif act == "disallow":
+            if c_id in whitelist: whitelist[c_id].discard(target)
+        await cb.answer("• تم تنفيذ الإجراء •", show_alert=True)
+
+# --- [ 6. الـمـحـرك الـحـمـايـة ] ---
 
 @app.on_message(filters.group & ~filters.me, group=-1)
 async def protector_engine(client, message: Message):
@@ -183,44 +194,28 @@ async def protector_engine(client, message: Message):
     if not u_id or await has_permission(c_id, u_id): return
     locks = smart_db.get(c_id, set())
     if not locks: return
+    text = message.text or message.caption or ""
 
-    text_content = message.text or message.caption or ""
+    if "all" in locks or ("text" in locks and message.text): return await message.delete()
+    if "links" in locks and (message.entities or message.caption_entities): return await message.delete()
+    if "photos" in locks and message.photo: return await message.delete()
+    if "videos" in locks and message.video: return await message.delete()
+    if "stickers" in locks and message.sticker: return await message.delete()
+    if "voice" in locks and message.voice: return await message.delete()
+    if "bots" in locks and message.new_chat_members:
+        for m in message.new_chat_members:
+            if m.is_bot: await app.ban_chat_member(c_id, m.id)
+    if "porn" in locks and is_bad_context(text):
+        await message.delete()
+        return await message.reply_text("<b>• عـذراً، الـسـب مـمـنـوع 🧚🤍 •</b>")
 
-    if "all" in locks: return await message.delete()
-    if "text" in locks and message.text: return await message.delete()
-
-    if "porn" in locks:
-        if is_bad_context(text_content):
-            await message.delete()
-            return await message.reply_text("<b>اقـفـل بـوقـك يـا حـمـار 🧚🤍</b>")
-        if message.photo:
-            path = await message.download()
-            if check_nudity(path): 
-                os.remove(path); await message.delete()
-                return await message.reply_text(f"<b>• عـذراً {message.from_user.mention}، الـصـور الإبـاحـيـة مـمـنـوعـة ❌ •</b>")
-            os.remove(path)
-
-    v_type = None
-    if "links" in locks and (message.entities or message.caption_entities): v_type = "الروابط"
-    elif "photos" in locks and message.photo: v_type = "الصور"
-    elif "stickers" in locks and message.sticker: v_type = "الملصقات"
-    elif "videos" in locks and message.video: v_type = "الفيديو"
-    elif "voice" in locks and message.voice: v_type = "البصمات"
-    elif "flood" in locks and message.text:
-        if last_msg_cache.get(f"{c_id}:{u_id}") == message.text: v_type = "التكرار"
-        last_msg_cache[f"{c_id}:{u_id}"] = message.text
-
-    if v_type:
-        try:
-            await message.delete()
-            v_key = f"{c_id}:{u_id}"
-            limit = warn_limits.get(c_id, 3)
-            user_violations[v_key] = user_violations.get(v_key, 0) + 1
-            if user_violations[v_key] >= limit:
-                await app.restrict_chat_member(c_id, u_id, ChatPermissions(can_send_messages=False))
-                user_violations[v_key] = 0
-                await message.reply_text(f"<b>• تـم تـقـيـيـدك لـتـكـرار الـمـخـالـفـات 🧚🤍\n👤: {message.from_user.mention} •</b>")
-            else:
-                a = await message.reply_text(f"<b>• عـذراً {message.from_user.mention}، {v_type} مـقـفـول 🧚🤍 ({user_violations[v_key]}/{limit}) •</b>")
-                await asyncio.sleep(2); await a.delete()
+@app.on_message(filters.command(["مسح"], "") & filters.group)
+async def clear_chat_cmd(_, message: Message):
+    if not await is_admin(message.chat.id, message.from_user.id): return
+    num = int(message.command[1]) if len(message.command) > 1 else 100
+    await message.delete()
+    async for m in app.get_chat_history(message.chat.id, limit=num):
+        try: await m.delete()
         except: pass
+    t = await message.reply("<b>• تم المسح 🧹 •</b>")
+    await asyncio.sleep(2); await t.delete()
