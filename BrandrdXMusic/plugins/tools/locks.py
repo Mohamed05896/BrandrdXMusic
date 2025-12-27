@@ -62,10 +62,10 @@ async def add_warn(message: Message):
     if current >= limit:
         warns_db[c_id][u_id] = 0
         await app.restrict_chat_member(c_id, u_id, ChatPermissions(can_send_messages=False), until_date=datetime.now()+timedelta(hours=24))
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("فـك الـكـت_م", callback_data=f"u_unmute_{u_id}")]])
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("فـك الـكـتـم", callback_data=f"u_unmute_{u_id}")]])
         await message.reply(f"<b>•الـعـضـو:{message.from_user.mention}\n•وصـل لـحـد الـتـحـذيرات({current}/{limit})\n•تـم كـتـمـه 24 سـاعـة تـلـقـائـيـاً 🤍🥀</b>", reply_markup=kb)
     else:
-        await message.reply(f"<b>•تـم حـذف رسـالـتـك لـمـخـالـفـة الـقـوانـيـن\n•تـحـذيـراتـك:({current}/{limit}) 🤍🥀</b>")
+        await message.reply(f"<b>•تـم حـذف رسـالـتـك لـم_خـالـفـة الـقـوانـيـن\n•تـحـذيـراتـك:({current}/{limit}) 🤍🥀</b>")
 
 # --- [ 3. أوامر الإدارة والتحذيرات ] ---
 
@@ -116,19 +116,6 @@ async def admin_unmute_cmds(_, message: Message):
     await app.restrict_chat_member(message.chat.id, u_id, ChatPermissions(can_send_messages=True, can_send_media_messages=True))
     await message.reply("<b>•تـم فـك الـكـتـم</b>")
 
-@app.on_message(filters.command(["سماح", "شد سماح"], "") & filters.group)
-async def admin_allow_cmds(_, message: Message):
-    if not await has_permission(message.chat.id, message.from_user.id): return
-    if not message.reply_to_message: return
-    u_id = message.reply_to_message.from_user.id
-    if "شد سماح" in message.text:
-        if message.chat.id in whitelist: whitelist[message.chat.id].discard(u_id)
-        await message.reply("<b>•تـم شـد الـسـمـاح</b>")
-    else:
-        if message.chat.id not in whitelist: whitelist[message.chat.id] = set()
-        whitelist[message.chat.id].add(u_id)
-        await message.reply("<b>•تـم الـسـمـاح</b>")
-
 # --- [ 4. لوحة الإعدادات والـ Callback ] ---
 
 def get_kb(chat_id):
@@ -142,7 +129,7 @@ def get_kb(chat_id):
         if i+1 < len(unique):
             k2 = unique[i+1]
             n2 = names[k2].replace(" ", "ـ")
-            row.append(InlineKeyboardButton(f"{n2} ⤶ {'مـقـف_ول' if k2 in active else 'مـفـتـوح'}", callback_data=f"trg_{k2}"))
+            row.append(InlineKeyboardButton(f"{n2} ⤶ {'مـقـفـول' if k2 in active else 'مـفـتـوح'}", callback_data=f"trg_{k2}"))
         kb.append(row)
     kb.append([InlineKeyboardButton("إغـلاق الـلـوحـة", callback_data="close")])
     return InlineKeyboardMarkup(kb)
@@ -163,7 +150,7 @@ async def cb_handler(_, cb: CallbackQuery):
             return await cb.answer("هـذا الأمـر لـلـمـشـرفـيـن فـقـط", show_alert=True)
         u_id = int(cb.data.split("_")[2])
         await app.restrict_chat_member(cb.message.chat.id, u_id, ChatPermissions(can_send_messages=True, can_send_media_messages=True))
-        await cb.message.edit_text(f"<b>•تـم فـك الـكـتـم عـن الـعـضـو بـواسـطـة {cb.from_user.mention}</b>")
+        await cb.message.edit_text(f"<b>•تـم فـك الـك_تـم عـن الـعـضـو بـواسـطـة {cb.from_user.mention}</b>")
         return await cb.answer("تـم فـك الـكـتـم")
 
     if not await has_permission(cb.message.chat.id, cb.from_user.id): return
@@ -189,4 +176,49 @@ async def protector_engine(_, message: Message):
         except: pass
 
     if "porn" in locks and text:
-        clean = re.sub(r"[^\u062
+        clean = re.sub(r"[^\u0621-\u064A\s]", "", text)
+        if any(fuzz.ratio(bad, word) > 85 for word in clean.split() for bad in BAD_WORDS):
+            await message.delete()
+            await message.reply(f"<b>•يـا {message.from_user.mention}، تـذكـر قـول الله تـعـالـي: (مَا يَلْفِظُ مِنْ قَوْلٍ إِلَّا لَدَيْهِ رَقِيبٌ عَتِيدٌ).. وتـذكـر أن هـذه الـحـيـاة فـانـيـة 🤍🥀</b>")
+            return await add_warn(message)
+
+    if "porn" in locks and message.photo:
+        path = await message.download()
+        is_porn = check_porn_api(path)
+        if os.path.exists(path): os.remove(path)
+        if is_porn:
+            await message.delete()
+            await message.reply(f"<b>•اتـقِ الله يـا {message.from_user.mention} فـكـل نـظـرة مـحـرمـة هـي سـهـم مـسـمـوم فـي قـلـبـك وتـذكـر ان هـذه الـحـيـاه فـانـيـه 🤍🥀</b>")
+            return await add_warn(message)
+
+    check = [
+        ("links", message.entities or message.caption_entities),
+        ("photos", message.photo), ("videos", message.video),
+        ("stickers", message.sticker), ("voice", message.voice)
+    ]
+    for key, val in check:
+        if key in locks and val:
+            await message.delete()
+            return await add_warn(message)
+
+# --- [ 6. أمر المسح المعدل ] ---
+
+@app.on_message(filters.command("مسح", "") & filters.group)
+async def clear_chat_cmd(_, message: Message):
+    if not await has_permission(message.chat.id, message.from_user.id): return
+    try:
+        num = int(message.command[1]) if len(message.command) > 1 else 100
+    except: num = 100
+    
+    await message.delete() # حذف رسالة "مسح"
+    
+    msg_ids = []
+    # جلب الرسائل وحذفها جماعياً للسرعة وحذف رسائل الجميع
+    async for m in app.get_chat_history(message.chat.id, limit=num):
+        msg_ids.append(m.id)
+        if len(msg_ids) == 100:
+            await app.delete_messages(message.chat.id, msg_ids)
+            msg_ids = []
+            
+    if msg_ids:
+        await app.delete_messages(
