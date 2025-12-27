@@ -42,6 +42,18 @@ async def has_permission(chat_id, user_id):
     except: return False
     return False
 
+# دالة النسف التنازلي المعتمدة (التي اشتغلت معك)
+async def force_delete(chat_id, current_id, limit):
+    count = 0
+    # تبحث في نطاق IDs لضمان حذف الرسائل المطلوبة حتى لو كان هناك فجوات
+    for i in range(current_id, current_id - (limit + 200), -1): 
+        if count >= limit: break
+        try:
+            if await app.delete_messages(chat_id, i):
+                count += 1
+        except: continue
+    return count
+
 def check_porn_api(file_path):
     try:
         params = {'models': 'nudity-2.0', 'api_user': API_USER, 'api_secret': API_SECRET}
@@ -76,12 +88,12 @@ async def add_warn(message: Message, reason="normal"):
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("🧚 • فـك الـكـتـم • 🧚", callback_data=f"u_unmute_{u_id}")]])
         try:
             await app.restrict_chat_member(c_id, u_id, ChatPermissions(can_send_messages=False), until_date=datetime.now() + timedelta(days=mute_days))
-            await message.reply(f"{msg_text}\n\n<b>• تـم كـتـمـك تـلـقـائـيـاً لـمـدة {mute_days} أيـام\n• الـسـبـب : تـخـطي حـد الـتـحـذيرات ({limit}) 🤍🥀</b>", reply_markup=kb)
+            await message.reply(f"{msg_text}\n\n<b>• تم كتمك تلقائياً لمدة {mute_days} أيام\n• السبب : تخطي حد التحذيرات ({limit}) 🤍🥀</b>", reply_markup=kb)
         except: pass
     else:
-        await message.reply(f"{msg_text}\n\n<b>• تـحـذيـراتـك الـحـالـيـة : ({current}/{limit})</b>")
+        await message.reply(f"{msg_text}\n\n<b>• تحذيراتك الحالية : ({current}/{limit})</b>")
 
-# --- [ 3. أوامر الإدارة والتحكم ] ---
+# --- [ 3. أوامر الإدارة ] ---
 
 @app.on_message(filters.command(["سماح", "شد سماح", "اكتم", "شد ميوت", "فك الكتم"], "") & filters.group)
 async def admin_cmds_handler(_, message: Message):
@@ -97,40 +109,59 @@ async def admin_cmds_handler(_, message: Message):
     try:
         if cmd == "سماح":
             await app.promote_chat_member(message.chat.id, user_id, privileges=ChatPrivileges(can_manage_chat=True, can_delete_messages=True, can_restrict_members=True))
-            await message.reply(f"<b>• تـم مـنـح الـسـمـاح لـلـعـضـو : {mention} بـنـجـاح</b>")
+            await message.reply(f"<b>• تم منح السماح للعضو : {mention} بنجاح</b>")
         elif cmd == "شد سماح":
             await app.promote_chat_member(message.chat.id, user_id, privileges=ChatPrivileges(can_manage_chat=False))
-            await message.reply(f"<b>• تـم سـحـب الـسـمـاح مـن الـعـضـو : {mention} بـنـجـاح</b>")
+            await message.reply(f"<b>• تم سحب السماح من العضو : {mention} بنجاح</b>")
         elif cmd == "اكتم":
             await app.restrict_chat_member(message.chat.id, user_id, ChatPermissions(can_send_messages=False))
-            await message.reply(f"<b>• تـم كـتـم الـع_ضـو : {mention} بـنـجـاح</b>")
+            await message.reply(f"<b>• تم كتم العضو : {mention} بنجاح</b>")
         elif cmd in ["شد ميوت", "فك الكتم"]:
             await app.restrict_chat_member(message.chat.id, user_id, ChatPermissions(can_send_messages=True))
-            await message.reply(f"<b>• تـم فـك كـتـم الـعـضـو : {mention} بـنـجـاح</b>")
+            await message.reply(f"<b>• تم فك كتم العضو : {mention} بنجاح</b>")
     except: pass
 
-# --- [ 4. أوامر المسح والتدمير الذاتي ] ---
+@app.on_message(filters.command("تحذيرات", "") & filters.group)
+async def set_warns_limit(_, message: Message):
+    if not await has_permission(message.chat.id, message.from_user.id): return
+    if len(message.command) < 2: return
+    try:
+        num = int(message.command[1])
+        max_warns[message.chat.id] = num
+        await message.reply(f"<b>• تم تحديد عدد التحذيرات في هذه المجموعة إلى : {num} تحذير</b>")
+    except: pass
+
+# --- [ 4. أوامر المسح والتدمير الفعالة (المحدثة) ] ---
 
 @app.on_message(filters.command(["مسح", "تنظيف"], "") & filters.group)
 async def destructive_clear_cmd(_, message: Message):
     if not await has_permission(message.chat.id, message.from_user.id): return
-    try: num = int(message.command[1]) if len(message.command) > 1 else 100
-    except: num = 100
-    await message.delete()
-    count = 0
-    async for m in app.get_chat_history(message.chat.id, limit=num):
-        try:
-            await m.delete()
-            count += 1
-        except: pass
-    temp = await message.reply(f"<b>• تـم تـنـفـيـذ الـتـدمـيـر ومـسـح {count} رسـالـة مـن الـمـجـمـوعـة 🛡️</b>")
+    
+    # حالة المسح بالرد
+    if message.reply_to_message:
+        start_id = message.reply_to_message.id
+        end_id = message.id
+        msg_ids = list(range(start_id, end_id + 1))
+        # الحذف بنظام المجموعات لضمان الفعالية
+        for i in range(0, len(msg_ids), 100):
+            try: await app.delete_messages(message.chat.id, msg_ids[i:i+100])
+            except: continue
+        deleted = len(msg_ids)
+    
+    # حالة المسح بالعدد (بدون رد)
+    else:
+        try: num = int(message.command[1]) if len(message.command) > 1 else 100
+        except: num = 100
+        deleted = await force_delete(message.chat.id, message.id, num)
+    
+    temp = await message.reply(f"<b>• تم بنجاح مسح {deleted} رسالة من المجموعة 🧚</b>")
     await asyncio.sleep(3); await temp.delete()
 
 @app.on_message(filters.command("تدمير ذاتي", "") & filters.group)
 async def self_destruct_cmd(_, message: Message):
     if not await has_permission(message.chat.id, message.from_user.id): return
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("• تـدمـيـر ذاتـي • 🧚", callback_data="total_destruction")]])
-    await message.reply("<b>اضغط على الزر أدناه لبدء تدمير رسائل المجموعة بالكامل</b>", reply_markup=kb)
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("• تـدمـيـر ذاتـي (500) • 🧚", callback_data="total_destruction")]])
+    await message.reply("<b>اضغط على الزر أدناه لبدء تدمير آخر 500 رسالة بنظام النسف التنازلي</b>", reply_markup=kb)
 
 # --- [ 5. محرك الحماية ولوحة الإعدادات ] ---
 
@@ -139,16 +170,24 @@ async def protector_engine(_, message: Message):
     c_id = message.chat.id
     if not message.from_user or await has_permission(c_id, message.from_user.id): return
     locks = smart_db.get(c_id, set())
+    
+    if "all" in locks:
+        try: await message.delete()
+        except: pass
+        return
+
     text = message.text or message.caption or ""
     if "porn_text" in locks and text:
         clean = re.sub(r"[^\u0621-\u064A\s]", "", text)
         if any(fuzz.ratio(bad, word) > 85 for word in clean.split() for bad in BAD_WORDS):
             await message.delete(); return await add_warn(message, reason="religious")
+    
     if "porn_media" in locks and message.photo:
         file_path = await message.download()
         if check_porn_api(file_path):
             os.remove(file_path); await message.delete(); return await add_warn(message, reason="religious")
         os.remove(file_path)
+    
     if "photos" in locks and message.photo: await message.delete(); return await add_warn(message)
 
 @app.on_message(filters.command(["قفل", "فتح"], "") & filters.group)
@@ -161,10 +200,10 @@ async def toggle_lock_cmds(_, message: Message):
     if message.chat.id not in smart_db: smart_db[message.chat.id] = set()
     if cmd == "قفل":
         smart_db[message.chat.id].add(key)
-        await message.reply(f"<b>• تـم قـفـل {input_text} بـنـجـاح فـي الـمـجـمـوعـة</b>")
+        await message.reply(f"<b>• تم قفل {input_text} بنجاح في المجموعة</b>")
     else:
         smart_db[message.chat.id].discard(key)
-        await message.reply(f"<b>• تـم فـتـح {input_text} بـنـجـاح فـي الـمـجـمـوعـة</b>")
+        await message.reply(f"<b>• تم فتح {input_text} بنجاح في المجموعة</b>")
 
 def get_kb(chat_id):
     kb = []
@@ -172,10 +211,10 @@ def get_kb(chat_id):
     items = list(LOCK_MAP.items())
     for i in range(0, len(items), 2):
         row = []
-        n1, k1 = items[i]; s1 = "مـقـفـول" if k1 in active else "مـفـتـوح"
+        n1, k1 = items[i]; s1 = "مقفل" if k1 in active else "مفتوح"
         row.append(InlineKeyboardButton(f"• {n1} ⇽ {s1} •", callback_data=f"trg_{k1}"))
         if i + 1 < len(items):
-            n2, k2 = items[i+1]; s2 = "مـقـفـول" if k2 in active else "مـفـتـوح"
+            n2, k2 = items[i+1]; s2 = "مقفل" if k2 in active else "مفتوح"
             row.append(InlineKeyboardButton(f"• {n2} ⇽ {s2} •", callback_data=f"trg_{k2}"))
         kb.append(row)
     kb.append([InlineKeyboardButton("• إغـلاق الـلـوحـة •", callback_data="close")])
@@ -184,26 +223,32 @@ def get_kb(chat_id):
 @app.on_message(filters.command(["الاعدادات", "locks"], "") & filters.group)
 async def settings_cmd(_, message: Message):
     if not await has_permission(message.chat.id, message.from_user.id): return
-    await message.reply_text(f"<b>• إعـدادات مـجـمـوعـة : {message.chat.title}</b>", reply_markup=get_kb(message.chat.id))
+    await message.reply_text(f"<b>• إعدادات مجموعة : {message.chat.title}</b>", reply_markup=get_kb(message.chat.id))
 
-# --- [ 6. التفاعل مع الكيبورد (Callback) ] ---
+# --- [ 6. التفاعل مع الكيبورد (المحدث) ] ---
 
 @app.on_callback_query(filters.regex("^(trg_|u_|close|total_destruction)"))
 async def cb_handler(_, cb: CallbackQuery):
     if not await has_permission(cb.message.chat.id, cb.from_user.id): return
+    
     if cb.data == "close": return await cb.message.delete()
+    
     if cb.data == "total_destruction":
-        await cb.message.edit("<b>جاري تدمير المجموعة بالكامل... 🛡️</b>")
-        async for m in app.get_chat_history(cb.message.chat.id, limit=500):
-            try: await m.delete()
-            except: pass
+        await cb.answer("جاري النسف الشامل...", show_alert=True)
+        await cb.message.edit("<b>جاري تدمير 500 رسالة من المجموعة... 🧚</b>")
+        # استخدام النسف التنازلي في التدمير الذاتي
+        deleted = await force_delete(cb.message.chat.id, cb.message.id, 500)
+        await app.send_message(cb.message.chat.id, f"<b>تم تدمير {deleted} رسالة بنجاح 🧚</b>")
+        await cb.message.delete()
+
     elif cb.data.startswith("trg_"):
         key = cb.data.replace("trg_", "")
         if cb.message.chat.id not in smart_db: smart_db[cb.message.chat.id] = set()
         if key in smart_db[cb.message.chat.id]: smart_db[cb.message.chat.id].discard(key)
         else: smart_db[cb.message.chat.id].add(key)
         await cb.message.edit_reply_markup(reply_markup=get_kb(cb.message.chat.id))
+
     elif cb.data.startswith("u_unmute_"):
         u_id = int(cb.data.split("_")[2])
         await app.restrict_chat_member(cb.message.chat.id, u_id, ChatPermissions(can_send_messages=True))
-        await cb.message.edit(f"<b>• تـم فـك الـكـتـم بـنـجـاح بـواسطـة {cb.from_user.mention}</b>")
+        await cb.message.edit(f"<b>• تم فك الكتم بنجاح بواسطة {cb.from_user.mention}</b>")
