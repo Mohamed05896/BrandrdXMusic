@@ -1,5 +1,6 @@
 import asyncio
 import random
+import aiohttp
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pyrogram import filters
 from pyrogram.types import Message
@@ -10,13 +11,13 @@ from config import BANNED_USERS, COMMAND_PREFIXES, MONGO_DB_URI
 from BrandrdXMusic import app
 from BrandrdXMusic.utils.stream.stream import stream
 
-# --- إعداد قاعدة البيانات ---
+# --- [ 1. إعداد قاعدة البيانات ] ---
 db_client = AsyncIOMotorClient(MONGO_DB_URI)
 azan_collection = db_client.BrandrdX.azan_final_db
 
 OWNER_ID = 8313557781
 
-# --- مكتبة الأدعية الضخمة (تظهر في الصباح فقط) ---
+# --- [ 2. مكتبة الأذكار والأدعية الكاملة ] ---
 MORNING_DUAS = [
     "اللهم بك أصبحنا، وبك أمسينا، وبك نحيا، وبك نموت، وإليك النشور. ☀️",
     "أصبحنا وأصبح الملك لله، والحمد لله، لا إله إلا الله وحده لا شريك له. ✨",
@@ -34,36 +35,65 @@ MORNING_DUAS = [
     "حسبي الله لا إله إلا هو، عليه توكلت وهو رب العرش العظيم. ⛰️"
 ]
 
-# --- مواقيت الأذان (تعمل تلقائياً) ---
-AZAN_DATA = {
-    "الفجر": {"time": "05:17", "vidid": "4vV5aV6YK14", "link": "https://youtu.be/r9AWBlpantg?si=ZMX7SSTkJKJXBJLs", "sticker": "CAACAgQAAyEFAATHCHTJAAIJD2lOq8aLkRR49evBKiITWWhwtgEoAALoGgACp_FYUQuzqVH-JHS5HgQ"},
-    "الظهر": {"time": "11:56", "vidid": "21MuvFr7CK8", "link": "https://www.youtube.com/watch?v=21MuvFr7CK8", "sticker": "CAACAgQAAyEFAATHCHTJAAIJEWlOrFKzjSDZeWfl6U3F-lrKldRXAAJMGwACMVlYUa15CORC0p0xHgQ"},
-    "العصر": {"time": "14:44", "vidid": "bb6cNncMdiM", "link": "https://www.youtube.com/watch?v=bb6cNncMdiM", "sticker": "CAACAgQAAyEFAATHCHTJAAIJE2lOrFRQIbcdLfnpdl5PtbdqNyR6AALFGQAC3ZZRUcK5YivXbwUAAR4E"},
-    "المغرب": {"time": "17:03", "vidid": "bb6cNncMdiM", "link": "https://youtu.be/hKPcNh7WHoM?si=EHp9EKokIHdnM2kf", "sticker": "CAACAgQAAyEFAATHCHTJAAIJFWlOrFT4eOnPJDsSuU6Ya-V0WPQdAALfFwACcIVQUX6NcNNCxvdRHgQ"},
-    "العشاء": {"time": "18:26", "vidid": "7xau5N3GYAo", "link": "https://youtu.be/hKPcNh7WHoM?si=EHp9EKokIHdnM2kf", "sticker": "CAACAgQAAyEFAATHCHTJAAIJF2lOrFVxhRGefHki3d4s-hLC9cKHAALqHAAC3oZQUWqQdvdwXnGLHgQ"}
+# --- [ 3. بيانات الوسائط (الروابط والملصقات) ] ---
+AZAN_RESOURCES = {
+    "Fajr": {"name": "الفجر", "vidid": "4vV5aV6YK14", "link": "https://youtu.be/r9AWBlpantg", "sticker": "CAACAgQAAyEFAATHCHTJAAIJD2lOq8aLkRR49evBKiITWWhwtgEoAALoGgACp_FYUQuzqVH-JHS5HgQ"},
+    "Dhuhr": {"name": "الظهر", "vidid": "21MuvFr7CK8", "link": "https://www.youtube.com/watch?v=21MuvFr7CK8", "sticker": "CAACAgQAAyEFAATHCHTJAAIJEWlOrFKzjSDZeWfl6U3F-lrKldRXAAJMGwACMVlYUa15CORC0p0xHgQ"},
+    "Asr": {"name": "العصر", "vidid": "bb6cNncMdiM", "link": "https://www.youtube.com/watch?v=bb6cNncMdiM", "sticker": "CAACAgQAAyEFAATHCHTJAAIJE2lOrFRQIbcdLfnpdl5PtbdqNyR6AALFGQAC3ZZRUcK5YivXbwUAAR4E"},
+    "Maghrib": {"name": "المغرب", "vidid": "bb6cNncMdiM", "link": "https://youtu.be/hKPcNh7WHoM", "sticker": "CAACAgQAAyEFAATHCHTJAAIJFWlOrFT4eOnPJDsSuU6Ya-V0WPQdAALfFwACcIVQUX6NcNNCxvdRHgQ"},
+    "Isha": {"name": "العشاء", "vidid": "7xau5N3GYAo", "link": "https://youtu.be/hKPcNh7WHoM", "sticker": "CAACAgQAAyEFAATHCHTJAAIJF2lOrFVxhRGefHki3d4s-hLC9cKHAALqHAAC3oZQUWqQdvdwXnGLHgQ"}
 }
 
-# --- وظائف التشغيل ---
-async def start_azan_stream(chat_id, prayer_name):
-    data = AZAN_DATA[prayer_name]
-    fake_result = {"link": data["link"], "vidid": data["vidid"], "title": f"أذان {prayer_name}", "duration_min": "05:00", "thumb": f"https://img.youtube.com/vi/{data['vidid']}/hqdefault.jpg"}
+# --- [ 4. وظائف جلب المواقيت والتشغيل ] ---
+
+async def get_azan_times():
+    url = "http://api.aladhan.com/v1/timingsByCity?city=Cairo&country=Egypt&method=5"
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    res_json = await response.json()
+                    return res_json["data"]["timings"]
+    except:
+        return None
+
+async def start_azan_stream(chat_id, prayer_key):
+    res = AZAN_RESOURCES[prayer_key]
+    fake_result = {
+        "link": res["link"], 
+        "vidid": res["vidid"], 
+        "title": f"أذان {res['name']}", 
+        "duration_min": "05:00", 
+        "thumb": f"https://img.youtube.com/vi/{res['vidid']}/hqdefault.jpg"
+    }
     _ = {"queue_4": "<b>🔢 الترتيب: #{}</b>", "stream_1": "<b>🔘 جاري التشغيل...</b>", "play_3": "<b>❌ فشل.</b>"}
     try:
-        await app.send_sticker(chat_id, data["sticker"])
-        caption = f"<b>حان الآن موعد اذان {prayer_name}</b>\n<b>بالتوقيت المحلي لمدينة القاهره 🕌🤍</b>"
+        await app.send_sticker(chat_id, res["sticker"])
+        caption = f"<b>حان الآن موعد اذان {res['name']}</b>\n<b>بالتوقيت المحلي لمدينة القاهره 1🕌🤍</b>"
         mystic = await app.send_message(chat_id, caption)
         await stream(_, mystic, app.id, fake_result, chat_id, "خدمة الأذان", chat_id, video=False, streamtype="youtube", forceplay=True)
-    except: pass
+    except:
+        pass
 
-async def broadcast_azan(prayer):
+async def broadcast_azan(prayer_key):
     async for entry in azan_collection.find({"azan_active": True}):
         c_id = entry.get("chat_id")
         if c_id:
-            await start_azan_stream(c_id, prayer)
-            await asyncio.sleep(5)
+            await start_azan_stream(c_id, prayer_key)
+            await asyncio.sleep(3)
+
+async def update_azan_scheduler():
+    times = await get_azan_times()
+    if not times:
+        return
+    for job in scheduler.get_jobs():
+        if job.id.startswith("azan_"):
+            job.remove()
+    for key in AZAN_RESOURCES.keys():
+        h, m = map(int, times[key].split(":"))
+        scheduler.add_job(broadcast_azan, "cron", hour=h, minute=m, args=[key], id=f"azan_{key}")
 
 async def send_morning_dua():
-    """ترسل الأدعية فقط في الصباح"""
     dua = random.choice(MORNING_DUAS)
     text = f"<b>☀️ دعاء الصباح</b>\n\n{dua}\n\n<b>صباحكم طاعة ورضا ✨</b>"
     async for entry in azan_collection.find({"dua_active": True}):
@@ -72,26 +102,24 @@ async def send_morning_dua():
             if chat_id:
                 await app.send_message(chat_id, text)
                 await asyncio.sleep(2)
-        except: continue
+        except:
+            continue
 
-# --- المجدول الزمني (التركيز على الصباح) ---
+# --- [ 5. إعداد المجدول الزمني ] ---
 scheduler = AsyncIOScheduler(timezone="Africa/Cairo")
-
-# جدولة الأذان
-for p, d in AZAN_DATA.items():
-    h, m = map(int, d["time"].split(":"))
-    scheduler.add_job(broadcast_azan, "cron", hour=h, minute=m, args=[p])
-
-# جدولة الدعاء (7 صباحاً فقط)
+scheduler.add_job(update_azan_scheduler, "cron", hour=0, minute=5)
 scheduler.add_job(send_morning_dua, "cron", hour=7, minute=0)
 
-if not scheduler.running: scheduler.start()
+if not scheduler.running:
+    scheduler.start()
+    asyncio.get_event_loop().create_task(update_azan_scheduler())
 
-# --- أوامر التحكم ---
+# --- [ 6. أوامر التحكم ] ---
+
 @app.on_message(filters.command(["تفعيل الاذان"], COMMAND_PREFIXES) & filters.group & ~BANNED_USERS)
 async def azan_on(_, message: Message):
     await azan_collection.update_one({"chat_id": message.chat.id}, {"$set": {"azan_active": True}}, upsert=True)
-    await message.reply_text("<b>✅ تم تفعيل الأذان التلقائي.</b>")
+    await message.reply_text("<b>تم تفعيل الاذان التلقائي 🤍</b>")
 
 @app.on_message(filters.command(["قفل الاذان"], COMMAND_PREFIXES) & filters.group & ~BANNED_USERS)
 async def azan_off(_, message: Message):
@@ -110,9 +138,4 @@ async def dua_off(_, message: Message):
 
 @app.on_message(filters.command("تست اذان", COMMAND_PREFIXES) & filters.user(OWNER_ID))
 async def test_a(_, message: Message):
-    await start_azan_stream(message.chat.id, "الفجر")
-
-@app.on_message(filters.command("تست دعاء", COMMAND_PREFIXES) & filters.user(OWNER_ID))
-async def test_d(_, message: Message):
-    dua = random.choice(MORNING_DUAS)
-    await message.reply_text(f"<b>☀️ تجربة دعاء الصباح:</b>\n\n{dua}")
+    await start_azan_stream(message.chat.id, "Fajr")
