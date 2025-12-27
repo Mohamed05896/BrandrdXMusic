@@ -69,7 +69,7 @@ async def start_azan_stream(chat_id, prayer_key):
     _ = {"queue_4": "<b>🔢 الترتيب: #{}</b>", "stream_1": "<b>🔘 جاري التشغيل...</b>", "play_3": "<b>❌ فشل.</b>"}
     try:
         await app.send_sticker(chat_id, res["sticker"])
-        caption = f"<b>حان الآن موعد اذان {res['name']}</b>\n<b>بالتوقيت المحلي لمدينة القاهره 1🕌🤍</b>"
+        caption = f"<b>حان الآن موعد اذان {res['name']}</b>\n<b>بالتوقيت المحلي لمدينة القاهره 🕌🤍</b>"
         mystic = await app.send_message(chat_id, caption)
         await stream(_, mystic, app.id, fake_result, chat_id, "خدمة الأذان", chat_id, video=False, streamtype="youtube", forceplay=True)
     except:
