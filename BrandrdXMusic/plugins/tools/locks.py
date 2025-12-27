@@ -49,12 +49,12 @@ LOCK_MAP = {
 }
 
 # قائمة الكلمات المحظورة لفحص السب والشتائم
-BAD_WORDS = ["سكس", "نيك", "شرموط", "منيوك", "كسمك", "زب", "فحل", "بورن", "متناك", "مص", "كس", "طيز", "قحبه", "فاجره", "نيك", "احاا", "لوطي", "خول"]
+BAD_WORDS = ["سكس", "نيك", "شرموط", "منيوك", "كسمك", "زب", "فحل", "بورن", "متناك", "مص", "كس", "طيز", "قحبه", "فاجره", "احاا", "متناكه", "خول"]
 
-# --- [ 2. الـدوال الـمـسـاعـدة والـتـحـذيـر ] ---
+# --- [ 2. الـدوال الـمـسـاعـدة والـفـحـص ] ---
 
 async def has_permission(chat_id, user_id):
-    """الـتـحـقـق مـن صـلاحـيـات الـمـشـرفـيـن والـمـطـوريـن"""
+    """الـتـحـقـق مـن صـلاحـيـات الـمـشـرفـيـن"""
     if user_id in SUDOERS:
         return True
     try:
@@ -65,19 +65,36 @@ async def has_permission(chat_id, user_id):
         return False
     return False
 
+def check_porn_api(file_path):
+    """فحص الصور عبر API خارجي للذكاء الاصطناعي"""
+    try:
+        params = {
+            'models': 'nudity-2.0',
+            'api_user': API_USER,
+            'api_secret': API_SECRET
+        }
+        with open(file_path, 'rb') as f:
+            r = requests.post('https://api.sightengine.com/1.0/check.json', files={'media': f}, data=params)
+        output = r.json()
+        if output.get('status') == 'success':
+            return output['nudity']['sexual_display'] > 0.5 or output['nudity']['erotica'] > 0.5
+    except Exception as e:
+        print(f"API Error: {e}")
+    return False
+
 async def add_warn(message: Message, reason="normal"):
     """نـظـام الـتـحـذيـرات والـعـقـوبـات الـمـطـور"""
     c_id = message.chat.id
     u_id = message.from_user.id
     mention = message.from_user.mention
     
-    # تحديد مدة الكتم والحد الأقصى بناءً على السبب
+    # تعديل الحد إلى 4 تحذيرات للسب والإباحي كما طلبت
     if reason == "religious":
-        limit = 5
-        mute_days = 7  # 7 أيام للسب والإباحي كما طلبت
+        limit = 4
+        mute_days = 7 
     else:
         limit = max_warns.get(c_id, 3)
-        mute_days = 1  # يوم واحد للبقية
+        mute_days = 1 
 
     if c_id not in warns_db:
         warns_db[c_id] = {}
@@ -85,10 +102,9 @@ async def add_warn(message: Message, reason="normal"):
     warns_db[c_id][u_id] = warns_db[c_id].get(u_id, 0) + 1
     current = warns_db[c_id][u_id]
     
-    # تحضير كيبورد فك الكتم المزخرف
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🧚 • فـك الـكـتـم • 🧚", callback_data=f"u_unmute_{u_id}")]])
     
-    if current >= limit:
+    if current > limit:
         warns_db[c_id][u_id] = 0
         try:
             await app.restrict_chat_member(
@@ -98,7 +114,7 @@ async def add_warn(message: Message, reason="normal"):
             )
             await message.reply(
                 f"<b>• الـعـضـو : {mention}\n"
-                f"• وصـل لـحـد الـتـحـذيرات ({current}/{limit})\n"
+                f"• تـخـطى حـد الـتـحـذيرات ({limit})\n"
                 f"• تـم كـتـمـه تـلـقـائـيـاً لـمـدة {mute_days} أيـام 🤍🥀</b>",
                 reply_markup=kb
             )
@@ -108,7 +124,7 @@ async def add_warn(message: Message, reason="normal"):
             await message.reply(
                 f"<b>يـا {mention} ، تـذكـر قـول الله تـعـالـي : ( مَا يَلْفِظُ مِنْ قَوْلٍ إِلَّا لَدَيْهِ رَقِيبٌ عَتِيدٌ ) وأن هذه الدنيا فانية\n\n"
                 f"• تـحـذيـراتـك الـحـالـيـة : ({current}/{limit}) 🤍🥀</b>",
-                reply_markup=kb # إضافة الزر حتى في التحذيرات العادية للتأديبي كما طلبت
+                reply_markup=kb
             )
         else:
             await message.reply(
@@ -116,13 +132,12 @@ async def add_warn(message: Message, reason="normal"):
                 f"• تـحـذيـراتـك الـحـالـيـة : ({current}/{limit})</b>"
             )
 
-# --- [ 3. أوامـر الـتـحـكـم والـقـفـل الـنـصـي ] ---
+# --- [ 3. أوامـر الـتـحـكـم الـنـصـي ] ---
 
 @app.on_message(filters.command(["قفل", "فتح"], "") & filters.group)
 async def toggle_lock_cmds(_, message: Message):
     if not await has_permission(message.chat.id, message.from_user.id):
         return
-    
     if len(message.command) < 2:
         return await message.reply("<b>• يـرجـي كـتـابـة مـا تـريـد الـتـحـكـم فـيـه بـعـد الأمـر</b>")
     
@@ -130,12 +145,10 @@ async def toggle_lock_cmds(_, message: Message):
     input_text = message.text.split(None, 1)[1].strip()
     key = LOCK_MAP.get(input_text)
     
-    if not key:
-        return await message.reply(f"<b>• عـذراً ، هـذا الأمـر ({input_text}) غـيـر مـعـرف لـدي</b>")
+    if not key: return
     
     c_id = message.chat.id
-    if c_id not in smart_db:
-        smart_db[c_id] = set()
+    if c_id not in smart_db: smart_db[c_id] = set()
     
     if cmd == "قفل":
         if key in smart_db[c_id]:
@@ -144,23 +157,11 @@ async def toggle_lock_cmds(_, message: Message):
         await message.reply(f"<b>• تـم قـفـل {input_text} بـنـجـاح تـام</b>")
     else:
         if key not in smart_db[c_id]:
-            return await message.reply(f"<b>• {input_text} بـالـفـعـل مـفـتـوح فـي الـمـجـمـوعـة</b>")
+            return await message.reply(f"<b>• {input_text} بـالـفـعـل مـفـتـوح فـي الـم_جـمـوعـة</b>")
         smart_db[c_id].discard(key)
-        await message.reply(f"<b>• تـم فـتـح {input_text} بـنـجـاح تـام</b>")
+        await message.reply(f"<b>• تـم فـتـح {input_text} بـنـج_اح تـام</b>")
 
-@app.on_message(filters.command("وضع التحذيرات", "") & filters.group)
-async def set_warns_cmd(_, message: Message):
-    if not await has_permission(message.chat.id, message.from_user.id):
-        return
-    if len(message.command) < 3:
-        return await message.reply("<b>• يـرجـي كـتـابـة رقـم بـعـد الأمـر</b>")
-    try:
-        num = int(message.command[2])
-        max_warns[message.chat.id] = num
-        await message.reply(f"<b>• تـم تـعـيـيـن حـد الـتـحـذيرات الـعـادي لـ : {num}</b>")
-    except: pass
-
-# --- [ 4. لـوحـة الإعـدادات والـتـفـاعـل ] ---
+# --- [ 4. لـوحـة الإعـدادات والـكـيـبـورد ] ---
 
 def get_kb(chat_id):
     kb = []
@@ -181,20 +182,14 @@ def get_kb(chat_id):
 
 @app.on_message(filters.command(["الاعدادات", "locks"], "") & filters.group)
 async def settings_cmd(_, message: Message):
-    if not await has_permission(message.chat.id, message.from_user.id):
-        return
-    await message.reply_text(
-        f"<b>• إعـدادات مـجـمـوعـة : {message.chat.title}</b>",
-        reply_markup=get_kb(message.chat.id)
-    )
+    if not await has_permission(message.chat.id, message.from_user.id): return
+    await message.reply_text(f"<b>• إعـدادات مـجـمـوعـة : {message.chat.title}</b>", reply_markup=get_kb(message.chat.id))
 
 @app.on_callback_query(filters.regex("^(trg_|u_|close)"))
 async def cb_handler(_, cb: CallbackQuery):
     c_id = cb.message.chat.id
-    if not await has_permission(c_id, cb.from_user.id):
-        return await cb.answer("هـذا الأمـر لـلـمـشـرفـيـن فـقـط", show_alert=True)
-    if cb.data == "close":
-        return await cb.message.delete()
+    if not await has_permission(c_id, cb.from_user.id): return
+    if cb.data == "close": return await cb.message.delete()
     if cb.data.startswith("trg_"):
         key = cb.data.replace("trg_", "")
         if c_id not in smart_db: smart_db[c_id] = set()
@@ -206,22 +201,17 @@ async def cb_handler(_, cb: CallbackQuery):
         await app.restrict_chat_member(c_id, u_id, ChatPermissions(can_send_messages=True))
         await cb.message.edit(f"<b>• تـم فـك الـكـتـم بـنـجـاح تـام بـواسطـة {cb.from_user.mention}</b>")
 
-# --- [ 5. مـحـرك الـحـمـايـة والـفـحـص الـفـوري ] ---
+# --- [ 5. مـحـرك الـحـمـايـة والـفـحـص الـذكـي ] ---
 
 @app.on_message(filters.group & ~filters.me, group=-1)
 async def protector_engine(_, message: Message):
     c_id = message.chat.id
-    if not message.from_user or await has_permission(c_id, message.from_user.id):
-        return
+    if not message.from_user or await has_permission(c_id, message.from_user.id): return
     
     locks = smart_db.get(c_id, set())
     if not locks: return
     
     text = message.text or message.caption or ""
-
-    if "all" in locks:
-        try: return await message.delete()
-        except: pass
 
     if "porn_text" in locks and text:
         clean = re.sub(r"[^\u0621-\u064A\s]", "", text)
@@ -229,19 +219,15 @@ async def protector_engine(_, message: Message):
             await message.delete()
             return await add_warn(message, reason="religious")
 
-    if "porn_media" in locks and (message.photo or message.video):
-        await message.delete()
-        return await add_warn(message, reason="religious")
+    if "porn_media" in locks and message.photo:
+        file_path = await message.download()
+        if check_porn_api(file_path):
+            os.remove(file_path)
+            await message.delete()
+            return await add_warn(message, reason="religious")
+        os.remove(file_path)
 
     if "photos" in locks and message.photo:
-        await message.delete()
-        return await add_warn(message)
-
-    if "videos" in locks and message.video:
-        await message.delete()
-        return await add_warn(message)
-
-    if "stickers" in locks and message.sticker:
         await message.delete()
         return await add_warn(message)
 
@@ -249,34 +235,13 @@ async def protector_engine(_, message: Message):
         await message.delete()
         return await add_warn(message)
 
-    if "usernames" in locks and "@" in text:
-        await message.delete()
-        return await add_warn(message)
-
-    if "forward" in locks and message.forward_date:
-        await message.delete()
-        return await add_warn(message)
-
-    if "voice" in locks and message.voice:
-        await message.delete()
-        return await add_warn(message)
-
-    if "hashtags" in locks and "#" in text:
-        await message.delete()
-        return await add_warn(message)
-
-# --- [ 6. أوامـر الـمـسـح والـتـنـظـيـف ] ---
+# --- [ 6. الـتـنـظـيـف ] ---
 
 @app.on_message(filters.command(["مسح", "تنظيف"], "") & filters.group)
 async def clear_chat_cmd(_, message: Message):
-    if not await has_permission(message.chat.id, message.from_user.id):
-        return
-    try:
-        num = int(message.command[1]) if len(message.command) > 1 else 100
-    except: num = 100
-    
+    if not await has_permission(message.chat.id, message.from_user.id): return
+    num = int(message.command[1]) if len(message.command) > 1 else 100
     await message.delete()
-    
     count = 0
     async for m in app.get_chat_history(message.chat.id, limit=num):
         try:
@@ -284,7 +249,6 @@ async def clear_chat_cmd(_, message: Message):
             count += 1
             if count % 25 == 0: await asyncio.sleep(1)
         except: pass
-            
     temp = await message.reply(f"<b>• تـم مـسـح {count} رسـالـة مـن الـشـات بـنـجـاح</b>")
     await asyncio.sleep(3)
     await temp.delete()
