@@ -4,7 +4,7 @@ import os
 import requests
 from pyrogram import filters, enums
 from pyrogram.types import Message, ChatPermissions, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from fuzzywuzzy import fuzz # تأكد من تثبيتها: pip install fuzzywuzzy python-Levenshtein
+from fuzzywuzzy import fuzz
 from BrandrdXMusic import app
 from BrandrdXMusic.misc import SUDOERS 
 
@@ -18,7 +18,6 @@ warn_limits = {}
 last_msg_cache = {} 
 whitelist = {} 
 
-# خريطة الأقفال الشاملة (35 نوع قفل وتفصيل)
 LOCK_MAP = {
     "الروابط": "links", "المعرفات": "usernames", "التاك": "hashtags",
     "الشارحه": "slashes", "التثبيت": "pin", "المتحركه": "animations",
@@ -33,13 +32,11 @@ LOCK_MAP = {
     "تعديل الميديا": "edit_media", "التفليش": "kick", "الحمايه": "antiraid", "المجموعة": "all"
 }
 
-# قائمة الجذور للرادار الذكي (كلام وحش وقريب منه)
 BAD_WORDS = ["سكس", "نيك", "شرموط", "منيوك", "كسم", "زب", "فحل", "بورن", "متناق", "مص", "كس", "طيز", "قحبه", "عير", "نيج", "خنيث", "لوطي", "خول"]
 
 # --- [ 2. دوال الـتـحـقـق والـحـمـاية والـرادار ] ---
 
 def is_bad_context(text):
-    """رادار كشف الكلام الوحش والتقارب والسياق"""
     if not text: return False
     clean = re.sub(r"[^\u0621-\u064A\s]", "", text)
     words = clean.split()
@@ -111,7 +108,8 @@ async def mute_user_handler(_, message: Message):
     u_id = message.reply_to_message.from_user.id if message.reply_to_message else None
     if u_id and not await is_admin(message.chat.id, u_id):
         await app.restrict_chat_member(message.chat.id, u_id, ChatPermissions(can_send_messages=False))
-        await message.reply_text(f"<b>• تـم كـتـم الـعـضـو بـنـجـاح 🔇🤍 •</b>")
+        # تم حذف ايموجي الميوت بطلبك
+        await message.reply_text(f"<b>• تـم كـتـم الـعـضـو بـنـجـاح 🤍 •</b>")
 
 @app.on_message(filters.command(["شد ميوت", "فك ميوت"], "") & filters.group)
 async def unmute_user_handler(_, message: Message):
@@ -119,7 +117,8 @@ async def unmute_user_handler(_, message: Message):
     u_id = message.reply_to_message.from_user.id if message.reply_to_message else None
     if u_id:
         await app.restrict_chat_member(message.chat.id, u_id, ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True, can_add_web_page_previews=True))
-        await message.reply_text(f"<b>• تـم فـك الـكـتـم عـن الـعـضـو 🔊🤍 •</b>")
+        # تم حذف ايموجي فك الميوت بطلبك
+        await message.reply_text(f"<b>• تـم فـك الـكـتـم عـن الـعـضـو 🤍 •</b>")
 
 # --- [ 4. لـوحـة الإعـدادات الـمـزخـرفـة (انـلايـن) ] ---
 
@@ -127,7 +126,7 @@ async def unmute_user_handler(_, message: Message):
 async def settings_keyboard(_, message: Message):
     if not await is_admin(message.chat.id, message.from_user.id): return
     kb, row, active = [], [], smart_db.get(message.chat.id, set())
-    for name, key in LOCK_MAP.items():
+    for name, key in list(LOCK_MAP.items())[:24]:
         if key == "all": continue
         status = "مـقـفـول" if key in active else "مـفـتـوح"
         row.append(InlineKeyboardButton(f"• {name} ⤶ {status} •", callback_data=f"trg_{key}"))
@@ -153,11 +152,11 @@ async def handle_callback(_, cb: CallbackQuery):
     else:
         if key in smart_db[c_id]: smart_db[c_id].discard(key)
         else: smart_db[c_id].add(key)
-    # تحديث الكيبورد
     kb, row, active = [], [], smart_db.get(c_id, set())
-    for name, k in LOCK_MAP.items():
+    for name, k in list(LOCK_MAP.items())[:24]:
         if k == "all": continue
-        row.append(InlineKeyboardButton(f"• {name} ⤶ {'مـقـفـول' if k in active else 'مـفـتـوح'} •", callback_data=f"trg_{k}"))
+        status = "مـقـفـول" if k in active else "مـفـتـوح"
+        row.append(InlineKeyboardButton(f"• {name} ⤶ {status} •", callback_data=f"trg_{k}"))
         if len(row) == 2: kb.append(row); row = []
     if row: kb.append(row)
     kb.append([InlineKeyboardButton(f"‹ {'فـتـح الـكـل' if 'all' in active else 'قـفـل الـكـل'} ›", callback_data="trg_all")])
@@ -187,11 +186,9 @@ async def protector_engine(client, message: Message):
 
     text_content = message.text or message.caption or ""
 
-    # فحص القفل الشامل
     if "all" in locks: return await message.delete()
     if "text" in locks and message.text: return await message.delete()
 
-    # فحص الإباحية والسب (الرادار والرد المزخرف)
     if "porn" in locks:
         if is_bad_context(text_content):
             await message.delete()
@@ -227,12 +224,3 @@ async def protector_engine(client, message: Message):
                 a = await message.reply_text(f"<b>• عـذراً {message.from_user.mention}، {v_type} مـقـفـول 🧚🤍 ({user_violations[v_key]}/{limit}) •</b>")
                 await asyncio.sleep(2); await a.delete()
         except: pass
-
-# --- [ 6. مـنـع الـبـوتـات ] ---
-@app.on_message(filters.group & filters.new_chat_members)
-async def anti_bot(client, message: Message):
-    if "bots" in smart_db.get(message.chat.id, set()):
-        for m in message.new_chat_members:
-            if m.is_bot:
-                try: await message.chat.ban_member(m.id)
-                except: pass
