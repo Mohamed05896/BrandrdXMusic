@@ -104,7 +104,7 @@ async def force_delete(chat_id, current_id, limit):
         if count >= limit: break
         try:
             await app.delete_messages(chat_id, msg_ids[i:i+100])
-            count += 100 # تقريبي
+            count += 100 
         except: continue
     return count
 
@@ -120,9 +120,19 @@ def check_porn_api(file_path):
     except: pass
     return False
 
-# دالة مساعدة لمد النصوص ديناميكياً للأزرار
-def extend_text(text):
-    return text.replace("", "ـ").strip("ـ").replace("ـ ـ", " ")
+# --- دالة زخرفة (تمديد) النصوص ---
+def make_mamdood(text):
+    """
+    تحويل النص العادي إلى نص ممدود
+    مثال: الروابط -> الـروابـط
+    """
+    new_text = ""
+    for i, char in enumerate(text):
+        new_text += char
+        # إذا لم يكن الحرف مسافة، ولم يكن الحرف التالي مسافة، ولم نصل للنهاية
+        if char != " " and i < len(text) - 1 and text[i+1] != " ":
+            new_text += "ـ"
+    return new_text
 
 async def add_warn(message: Message, reason="normal"):
     c_id = message.chat.id
@@ -136,6 +146,7 @@ async def add_warn(message: Message, reason="normal"):
     else:  
         limit = await get_warn_limit(c_id)  
         mute_days = 1   
+        # تحويل النص ليكون ممدوداً
         msg_text = f"<b>يـا {mention} ، تـم حـذف رسـالـتـك لـمـخـالـفـة قـوانـيـن الـحـمـايـة</b>"  
 
     current = await get_current_warns(c_id, u_id)
@@ -143,13 +154,16 @@ async def add_warn(message: Message, reason="normal"):
       
     if current > limit:  
         await update_user_warns(c_id, u_id, 0)
+        # زر فك الكتم ممدود
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("• فـك الـكـتـم 🧚 •", callback_data=f"u_unmute_{u_id}")]])  
         try:  
             await app.restrict_chat_member(c_id, u_id, ChatPermissions(can_send_messages=False), until_date=datetime.now() + timedelta(days=mute_days))
+            # رد الكتم ممدود
             await message.reply(f"{msg_text}\n\n<b>• تـم كـتـمـك لـمـدة {mute_days} أيـام لـتـخـطـي الـتـحـذيـرات</b>", reply_markup=kb)  
         except: pass  
     else:  
         await update_user_warns(c_id, u_id, current)
+        # رد التحذير ممدود
         await message.reply(f"{msg_text}\n\n<b>• تـحـذيـراتـك الـحـالـيـة : ({current}/{limit})</b>")
 
 # =========================================================
@@ -169,6 +183,7 @@ async def admin_cmds_handler(_, message: Message):
             user = await app.get_users(message.command[1]); user_id = user.id; mention = user.mention
         except: return
     
+    # الردود ممدودة بالكامل
     try:
         if cmd == "سماح":
             await app.promote_chat_member(message.chat.id, user_id, privileges=ChatPrivileges(can_manage_chat=True, can_delete_messages=True, can_restrict_members=True))
@@ -313,7 +328,7 @@ async def protector_engine(_, message: Message):
         return await add_warn(message, reason="religious" if is_religious else "normal")
 
     # فحص الإباحية المتقدم (API)
-    if "porn_media" in locks and (message.photo or (message.video and message.video.file_size < 50*1024*1024)):
+    if "porn_media" in locks and (message.photo or (message.video and message.video.file_size < 5*1024*1024)):
         try:
             path = await message.download()
             is_porn = await asyncio.get_event_loop().run_in_executor(None, check_porn_api, path)
@@ -335,15 +350,14 @@ async def toggle_lock(_, message: Message):
     key = LOCK_MAP.get(input_text)
     if not key: return
     
+    # نستخدم الدالة لتمديد النص الذي كتبه المستخدم
+    ex_text = make_mamdood(input_text)
+    
     if cmd == "قفل":
         await update_lock(message.chat.id, key, True)
-        # تمديد نص الرد
-        ex_text = extend_text(input_text)
         await message.reply(f"<b>• تـم قـفـل ({ex_text})</b>")
     else:
         await update_lock(message.chat.id, key, False)
-        # تمديد نص الرد
-        ex_text = extend_text(input_text)
         await message.reply(f"<b>• تـم فـتـح ({ex_text})</b>")
 
 async def get_kb(chat_id):
@@ -353,21 +367,29 @@ async def get_kb(chat_id):
     for i in range(0, len(items), 2):
         row = []
         n1, k1 = items[i]; s1 = "مـقـفـل" if k1 in active else "مـفـتـوح"
-        ex_n1 = extend_text(n1)
-        row.append(InlineKeyboardButton(f"• {ex_n1} ← {s1} •", callback_data=f"trg_{k1}"))
+        # تمديد اسم القفل وحالته
+        ex_n1 = make_mamdood(n1)
+        ex_s1 = make_mamdood(s1)
+        row.append(InlineKeyboardButton(f"• {ex_n1} ← {ex_s1} •", callback_data=f"trg_{k1}"))
         
         if i + 1 < len(items):
             n2, k2 = items[i+1]; s2 = "مـقـفـل" if k2 in active else "مـفـتـوح"
-            ex_n2 = extend_text(n2)
-            row.append(InlineKeyboardButton(f"• {ex_n2} ← {s2} •", callback_data=f"trg_{k2}"))
+            ex_n2 = make_mamdood(n2)
+            ex_s2 = make_mamdood(s2)
+            row.append(InlineKeyboardButton(f"• {ex_n2} ← {ex_s2} •", callback_data=f"trg_{k2}"))
         kb.append(row)
-    kb.append([InlineKeyboardButton("إغـلاق اللـوحـة", callback_data="close")])
+    
+    # تمديد نص زر الإغلاق
+    close_txt = make_mamdood("إغلاق اللوحة")
+    kb.append([InlineKeyboardButton(close_txt, callback_data="close")])
     return InlineKeyboardMarkup(kb)
 
 @app.on_message(filters.command(["الاعدادات", "locks"], "") & filters.group)
 async def settings(_, message: Message):
     if not await has_permission(message.chat.id, message.from_user.id): return
-    await message.reply_text(f"<b>• إعـدادات مـجـمـوعـة : {message.chat.title}</b>", reply_markup=await get_kb(message.chat.id))
+    # تمديد عنوان الرسالة
+    title_ex = make_mamdood("إعدادات مجموعة")
+    await message.reply_text(f"<b>• {title_ex} : {message.chat.title}</b>", reply_markup=await get_kb(message.chat.id))
 
 # =========================================================
 # [ 8 ] التفاعل مع الكيبورد (Callbacks)
