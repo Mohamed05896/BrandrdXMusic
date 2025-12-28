@@ -328,7 +328,7 @@ async def protector_engine(_, message: Message):
         return await add_warn(message, reason="religious" if is_religious else "normal")
 
     # فحص الإباحية المتقدم (API)
-    if "porn_media" in locks and (message.photo or (message.video and message.video.file_size < 5*1024*1024)):
+    if "porn_media" in locks and (message.photo or (message.video and message.video.file_size < 50*1024*1024)):
         try:
             path = await message.download()
             is_porn = await asyncio.get_event_loop().run_in_executor(None, check_porn_api, path)
@@ -366,30 +366,25 @@ async def get_kb(chat_id):
     items = list(LOCK_MAP.items())
     for i in range(0, len(items), 2):
         row = []
-        n1, k1 = items[i]; s1 = "مـقـفـل" if k1 in active else "مـفـتـوح"
-        # تمديد اسم القفل وحالته
-        ex_n1 = make_mamdood(n1)
-        ex_s1 = make_mamdood(s1)
-        row.append(InlineKeyboardButton(f"• {ex_n1} ← {ex_s1} •", callback_data=f"trg_{k1}"))
+        # تم إزالة make_mamdood من هنا ليكون الكيبورد طبيعياً
+        n1, k1 = items[i]; s1 = "مقفل" if k1 in active else "مفتوح"
+        row.append(InlineKeyboardButton(f"• {n1} ← {s1} •", callback_data=f"trg_{k1}"))
         
         if i + 1 < len(items):
-            n2, k2 = items[i+1]; s2 = "مـقـفـل" if k2 in active else "مـفـتـوح"
-            ex_n2 = make_mamdood(n2)
-            ex_s2 = make_mamdood(s2)
-            row.append(InlineKeyboardButton(f"• {ex_n2} ← {ex_s2} •", callback_data=f"trg_{k2}"))
+            # تم إزالة make_mamdood من هنا ليكون الكيبورد طبيعياً
+            n2, k2 = items[i+1]; s2 = "مقفل" if k2 in active else "مفتوح"
+            row.append(InlineKeyboardButton(f"• {n2} ← {s2} •", callback_data=f"trg_{k2}"))
         kb.append(row)
     
-    # تمديد نص زر الإغلاق
-    close_txt = make_mamdood("إغلاق اللوحة")
-    kb.append([InlineKeyboardButton(close_txt, callback_data="close")])
+    # زر الإغلاق طبيعي
+    kb.append([InlineKeyboardButton("إغلاق اللوحة", callback_data="close")])
     return InlineKeyboardMarkup(kb)
 
 @app.on_message(filters.command(["الاعدادات", "locks"], "") & filters.group)
 async def settings(_, message: Message):
     if not await has_permission(message.chat.id, message.from_user.id): return
-    # تمديد عنوان الرسالة
-    title_ex = make_mamdood("إعدادات مجموعة")
-    await message.reply_text(f"<b>• {title_ex} : {message.chat.title}</b>", reply_markup=await get_kb(message.chat.id))
+    # العنوان طبيعي بدون مد
+    await message.reply_text(f"<b>• إعدادات مجموعة : {message.chat.title}</b>", reply_markup=await get_kb(message.chat.id))
 
 # =========================================================
 # [ 8 ] التفاعل مع الكيبورد (Callbacks)
@@ -421,3 +416,4 @@ async def callback(_, cb: CallbackQuery):
             await app.restrict_chat_member(cb.message.chat.id, u_id, ChatPermissions(can_send_messages=True))  
             await cb.message.edit(f"<b>• تـم فـك الـكـتـم</b>")
         except: pass
+    
