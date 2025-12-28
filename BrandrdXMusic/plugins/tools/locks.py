@@ -9,9 +9,9 @@ from fuzzywuzzy import fuzz
 from BrandrdXMusic import app
 from BrandrdXMusic.misc import SUDOERS
 from motor.motor_asyncio import AsyncIOMotorClient
-
-# --- [ 1. MongoDB الإعدادات من السكرتس ] ---
 from config import MONGO_DB_URI
+
+# --- MongoDB setup ---
 mongo_client = AsyncIOMotorClient(MONGO_DB_URI)
 db = mongo_client["Brandrd_Protect"]
 locks_collection = db["locks"]
@@ -38,11 +38,10 @@ LOCK_MAP = {
 
 BAD_WORDS = ["سكس","نيك","شرموط","منيوك","كسمك","زب","فحل","بورن","متناك","مص","كس","طيز","قحبه","فاجره","احاا","متناكه","خول"]
 
-# --- [ 2. دوال مساعدة ] ---
+# --- Helpers ---
 async def is_whitelisted(chat_id, user_id):
     if user_id in SUDOERS: return True
-    found = await whitelist_collection.find_one({"chat_id": chat_id, "user_id": user_id})
-    return True if found else False
+    return bool(await whitelist_collection.find_one({"chat_id": chat_id, "user_id": user_id}))
 
 async def has_permission(chat_id, user_id):
     if user_id in SUDOERS: return True
@@ -67,41 +66,35 @@ def check_porn_api(file_path):
         with open(file_path,'rb') as f:
             r = requests.post('https://api.sightengine.com/1.0/check.json', files={'media':f}, data=params)
         output = r.json()
-        if output.get('status') == 'success':
-            return output['nudity']['sexual_display']>0.5 or output['nudity']['erotica']>0.5
-    except: pass
-    return False
+        return output.get('status')=='success' and (output['nudity']['sexual_display']>0.5 or output['nudity']['erotica']>0.5)
+    except: return False
 
-# --- [ 3. تحذيرات المستخدمين ] ---
+# --- User Warnings ---
 async def add_warn(message: Message, reason="normal"):
     c_id, u_id = message.chat.id, message.from_user.id
     mention = message.from_user.mention
 
-    max_warn_doc = await max_warns_collection.find_one({"chat_id": c_id})  
-    limit = max_warn_doc["limit"] if max_warn_doc else 3  
+    max_warn_doc = await max_warns_collection.find_one({"chat_id": c_id})
+    limit = max_warn_doc["limit"] if max_warn_doc else 3
+    mute_days = 7 if reason=="religious" else 1
 
-    mute_days = 7 if reason=="religious" else 1  
-    
-    if reason == "religious":
-        msg_text = f"<b>⌯ يـا {mention} تـذكـر قـول الله : ﴿ مَا يَلْفِظُ مِنْ قَوْلٍ إِلَّا لَدَيْهِ رَقِيبٌ عَتِيدٌ ﴾\n⌯ وان هذه الدنيا فانية 🥀</b>"
+    msg_text = f"<b>⌯ يـا {mention} تـذكـر قـول الله : ﴿ مَا يَلْفِظُ مِنْ قَوْلٍ إِلَّا لَدَيْهِ رَقِيبٌ عَتِيدٌ ﴾\n⌯ وان هذه الدنيا فانية 🥀</b>" if reason=="religious" else f"<b>⌯ يـا {mention} عذراً سيتم حذف الرسالة لمخالفة القوانين ـ</b>"
+
+    warn_doc = await warns_collection.find_one({"chat_id":c_id,"user_id":u_id})
+    current = (warn_doc["count"] + 1) if warn_doc else 1
+    await warns_collection.update_one({"chat_id":c_id,"user_id":u_id},{"$set":{"count":current}}, upsert=True)
+
+    if current > limit:
+        await warns_collection.update_one({"chat_id":c_id,"user_id":u_id},{"$set":{"count":0}})
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🧚 • فـك الـكـتـم • 🧚", callback_data=f"u_unmute_{u_id}")]])
+        try:
+            await app.restrict_chat_member(c_id, u_id, ChatPermissions(can_send_messages=False), until_date=datetime.now()+timedelta(days=mute_days))
+            await message.reply(f"{msg_text}\n\n<b>• تم كتمك تلقائياً لمدة {mute_days} أيام\n• السبب : تخطي حد التحذيرات ({limit}) 🤍🥀</b>", reply_markup=kb)
+        except: pass
     else:
-        msg_text = f"<b>⌯ يـا {mention} عذراً سيتم حذف الرسالة لمخالفة القوانين</b>"
+        await message.reply(f"{msg_text}\n\n<b>• تحذيراتك الحالية : ({current}/{limit})</b>")
 
-    warn_doc = await warns_collection.find_one({"chat_id":c_id,"user_id":u_id})  
-    current = (warn_doc["count"] + 1) if warn_doc else 1  
-    await warns_collection.update_one({"chat_id":c_id,"user_id":u_id},{"$set":{"count":current}}, upsert=True)  
-
-    if current > limit:  
-        await warns_collection.update_one({"chat_id":c_id,"user_id":u_id},{"$set":{"count":0}})  
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("فك الكتم", callback_data=f"u_unmute_{u_id}")]])  
-        try:  
-            await app.restrict_chat_member(c_id, u_id, ChatPermissions(can_send_messages=False), until_date=datetime.now()+timedelta(days=mute_days))  
-            await message.reply(f"{msg_text}\n\n<b>⌯ تم كتمك بسب تجاوز التحذيرات ({limit})</b>", reply_markup=kb)  
-        except: pass  
-    else:  
-        await message.reply(f"{msg_text}\n<b>⌯ تحذيراتك الحالية : ({current}/{limit})</b>")
-
-# --- [ 4. الهاندلرز ] ---
+# --- Admin Commands ---
 @app.on_message(filters.command(["سماح","شد سماح","كتم","شد ميوت","فك الكتم"], "") & filters.group)
 async def admin_cmds_handler(_, message: Message):
     if not await has_permission(message.chat.id,message.from_user.id): return
@@ -116,22 +109,23 @@ async def admin_cmds_handler(_, message: Message):
             user_id, mention = user.id, user.mention
         except: return
 
-    try:  
-        if cmd=="سماح":  
-            await whitelist_collection.update_one({"chat_id": message.chat.id, "user_id": user_id}, {"$set": {"trusted": True}}, upsert=True)  
-            res_text = f"<b>⌯ تم منح السماح لـ {mention}</b>"  
-        elif cmd=="شد سماح":  
-            await whitelist_collection.delete_one({"chat_id": message.chat.id, "user_id": user_id})  
-            res_text = f"<b>⌯ تم سحب السماح من {mention}</b>"  
-        elif cmd=="كتم":  
-            await app.restrict_chat_member(message.chat.id,user_id,ChatPermissions(can_send_messages=False))  
-            res_text = f"<b>⌯ تم كتم العضو {mention}</b>"  
-        elif cmd in ["شد ميوت","فك الكتم"]:  
-            await app.restrict_chat_member(message.chat.id,user_id,ChatPermissions(can_send_messages=True))  
-            res_text = f"<b>⌯ تم فك كتم {mention}</b>"  
-        await message.reply(res_text)  
+    try:
+        if cmd=="سماح":
+            await whitelist_collection.update_one({"chat_id": message.chat.id, "user_id": user_id}, {"$set": {"trusted": True}}, upsert=True)
+            res_text = f"<b>• تم منح السماح للعضو : {mention} بنجاح ـ</b>"
+        elif cmd=="شد سماح":
+            await whitelist_collection.delete_one({"chat_id": message.chat.id, "user_id": user_id})
+            res_text = f"<b>• تم سحب السماح من العضو : {mention} بنجاح ـ</b>"
+        elif cmd=="كتم":
+            await app.restrict_chat_member(message.chat.id,user_id,ChatPermissions(can_send_messages=False))
+            res_text = f"<b>• تم كتم العضو : {mention} بنجاح ـ</b>"
+        elif cmd in ["شد ميوت","فك الكتم"]:
+            await app.restrict_chat_member(message.chat.id,user_id,ChatPermissions(can_send_messages=True))
+            res_text = f"<b>• تم فك كتم العضو : {mention} بنجاح ـ</b>"
+        await message.reply(res_text)
     except: pass
 
+# --- Clear Messages ---
 @app.on_message(filters.command(["مسح","تنظيف"], "") & filters.group)
 async def destructive_clear_cmd(_, message: Message):
     if not await has_permission(message.chat.id,message.from_user.id): return
@@ -146,11 +140,11 @@ async def destructive_clear_cmd(_, message: Message):
         try: num=int(message.command[1]) if len(message.command)>1 else 100
         except: num=100
         deleted = await force_delete(message.chat.id,message.id,num)
-    temp = await message.reply(f"<b>⌯ تم تنظيف ({deleted}) رسالة</b>")
+    temp = await message.reply(f"<b>• تم بنجاح مسح {deleted} رسالة من المجموعة 🧚</b>")
     await asyncio.sleep(3)
     await temp.delete()
 
-# --- [ 5. محرك الحماية والقفل ] ---
+# --- Protector Engine (includes everything) ---
 async def get_locks(chat_id):
     doc = await locks_collection.find_one({"chat_id":chat_id})
     return set(doc["locks"]) if doc else set()
@@ -167,31 +161,42 @@ async def toggle_lock(chat_id,key,state:bool):
 async def protector_engine(_, message: Message):
     c_id = message.chat.id
     if not message.from_user: return
-    if await is_whitelisted(c_id, message.from_user.id): return  
-    if await has_permission(c_id, message.from_user.id): return  
-    locks = await get_locks(c_id)  
-    if not locks: return  
+    if await is_whitelisted(c_id, message.from_user.id): return
+    if await has_permission(c_id, message.from_user.id): return
+    locks = await get_locks(c_id)
+    if not locks: return
 
-    text = message.text or message.caption or ""  
-    if "all" in locks:  
-        await message.delete(); return  
+    text = message.text or message.caption or ""
+    if "all" in locks:
+        await message.delete(); return
 
-    if "links" in locks and re.search(r"(?:https?://|www\.|t\.me/)", text):  
-        await add_warn(message); await message.delete(); return  
-    
-    if "porn_text" in locks and text:  
-        clean=re.sub(r"[^\u0621-\u064A\s]","",text)  
-        if any(fuzz.ratio(bad,word)>85 for bad in BAD_WORDS for word in clean.split()):  
-            await add_warn(message,reason="religious")  
-            await message.delete(); return  
+    # Links, usernames, hashtags
+    if "links" in locks and re.search(r"(?:https?://|www\.|t\.me/)", text):
+        await add_warn(message); await message.delete(); return
+    if "usernames" in locks and re.search(r"@[A-Za-z0-9_]{5,32}", text):
+        await add_warn(message); await message.delete(); return
+    if "hashtags" in locks and "#" in text:
+        await add_warn(message); await message.delete(); return
 
-    media_locks=["photos","videos","animations","stickers","voice","audio","video_notes","docs"]  
-    for m in media_locks:  
-        if m in locks and getattr(message,m,None):  
-            await add_warn(message)  
-            await message.delete(); return
+    # Bad text / religious
+    if "porn_text" in locks and text:
+        clean = re.sub(r"[^\u0621-\u064A\s]", "", text)
+        if any(fuzz.ratio(bad, word) > 85 for bad in BAD_WORDS for word in clean.split()):
+            await message.delete(); return await add_warn(message, reason="religious")
 
-# --- [ 6. أوامر القفل واللوحة ] ---
+    # Media locks
+    media_locks = ["photos","videos","animations","stickers","voice","audio","video_notes","docs"]
+    for m in media_locks:
+        if m in locks and getattr(message, m, None):
+            file_path = await message.download()
+            if m in ["photos","videos"] and check_porn_api(file_path):
+                os.remove(file_path); await message.delete(); return await add_warn(message, reason="religious")
+            os.remove(file_path)
+            await add_warn(message)
+            await message.delete()
+            return
+
+# --- Locks & Panel ---
 @app.on_message(filters.command(["قفل","فتح"],"") & filters.group)
 async def toggle_lock_cmds(_,message:Message):
     if not await has_permission(message.chat.id,message.from_user.id): return
@@ -201,43 +206,50 @@ async def toggle_lock_cmds(_,message:Message):
     if not key: return
     state = True if cmd=="قفل" else False
     await toggle_lock(message.chat.id,key,state)
-    await message.reply(f"<b>⌯ تم {cmd} ({msg_text})</b>")
+    await message.reply(f"<b>• تم {cmd} {msg_text} ـ</b>")
 
-def get_kb(chat_id,set_locks):
+def get_kb(chat_id,set_locks=None):
     kb=[]
+    set_locks = set_locks or set()
     items=list(LOCK_MAP.items())
     for i in range(0,len(items),2):
         row=[]
         n1,k1=items[i]; s1="مقفل" if k1 in set_locks else "مفتوح"
-        row.append(InlineKeyboardButton(f"{n1} ⇽ {s1}",callback_data=f"trg_{k1}"))
+        row.append(InlineKeyboardButton(f"• {n1} ⇽ {s1} •",callback_data=f"trg_{k1}"))
         if i+1<len(items):
             n2,k2=items[i+1]; s2="مقفل" if k2 in set_locks else "مفتوح"
-            row.append(InlineKeyboardButton(f"{n2} ⇽ {s2}",callback_data=f"trg_{k2}"))
+            row.append(InlineKeyboardButton(f"• {n2} ⇽ {s2} •",callback_data=f"trg_{k2}"))
         kb.append(row)
-    kb.append([InlineKeyboardButton("إغـلاق اللوحة",callback_data="close")])
+    kb.append([InlineKeyboardButton("• إغـلاق الـلـوحـة •",callback_data="close")])
     return InlineKeyboardMarkup(kb)
 
 @app.on_message(filters.command(["الاعدادات","locks"],"") & filters.group)
 async def settings_cmd(_,message:Message):
     if not await has_permission(message.chat.id,message.from_user.id): return
     locks = await get_locks(message.chat.id)
-    await message.reply_text(f"<b>⌯ إعـدادات الـمـجـمـوعـة</b>",reply_markup=get_kb(message.chat.id,locks))
+    await message.reply_text(f"<b>• إعدادات مجموعة : {message.chat.title}</b>",reply_markup=get_kb(message.chat.id,locks))
 
-@app.on_callback_query(filters.regex("^(trg_|u_|close)"))
+@app.on_callback_query(filters.regex("^(trg_|u_|close|total_destruction)"))
 async def cb_handler(_,cb:CallbackQuery):
     if not await has_permission(cb.message.chat.id,cb.from_user.id): return
     if cb.data=="close": return await cb.message.delete()
-    if cb.data.startswith("trg_"):
-        key=cb.data.replace("trg_","")
+    if cb.data=="total_destruction":
+        await cb.answer("جاري النسف الشامل...", show_alert=True)
+        await cb.message.edit("<b>جاري تدمير 500 رسالة من المجموعة... 🧚</b>")
+        deleted = await force_delete(cb.message.chat.id, cb.message.id, 500)
+        await app.send_message(cb.message.chat.id, f"<b>تم تدمير {deleted} رسالة بنجاح 🧚</b>")
+        await cb.message.delete()
+    elif cb.data.startswith("trg_"):
+        key = cb.data.replace("trg_", "")
         current_locks = await get_locks(cb.message.chat.id)
         locks = await toggle_lock(cb.message.chat.id,key,key not in current_locks)
         await cb.message.edit_reply_markup(reply_markup=get_kb(cb.message.chat.id,locks))
     elif cb.data.startswith("u_unmute_"):
         u_id=int(cb.data.split("_")[2])
         await app.restrict_chat_member(cb.message.chat.id,u_id,ChatPermissions(can_send_messages=True))
-        await cb.message.edit(f"<b>⌯ تم فك الكتم</b>")
+        await cb.message.edit(f"<b>• تم فك الكتم بنجاح بواسطة {cb.from_user.mention} ـ</b>")
 
-# --- [ 9. المهمة الدورية ] ---
+# --- Flood cache cleanup ---
 async def clear_flood_cache_task():
     while True:
         now=datetime.now()
@@ -247,4 +259,3 @@ async def clear_flood_cache_task():
         await asyncio.sleep(3600)
 
 asyncio.create_task(clear_flood_cache_task())
-        
