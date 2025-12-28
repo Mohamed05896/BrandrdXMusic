@@ -148,7 +148,8 @@ async def add_warn(message: Message, reason="normal"):
     if current > limit:  
         # تجاوز الحد المسموح -> كتم
         await update_user_warns(c_id, u_id, 0)
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("فـك الـكـتـم", callback_data=f"u_unmute_{u_id}")]])  
+        # --- تعديل نص الزر هنا ---
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("• فك الكتم 🧚 •", callback_data=f"u_unmute_{u_id}")]])  
         try:  
             await app.restrict_chat_member(c_id, u_id, ChatPermissions(can_send_messages=False), until_date=datetime.now() + timedelta(days=mute_days))  
             await message.reply(f"{msg_text}\n\n<b>• تم كتمك لمدة {mute_days} أيام لتخطي التحذيرات ({limit})</b>", reply_markup=kb)  
@@ -162,7 +163,8 @@ async def add_warn(message: Message, reason="normal"):
 # [ 4 ] أوامر الإدارة (Admin Commands)
 # =========================================================
 
-@app.on_message(filters.command(["سماح", "شد سماح", "اكتم", "شد ميوت", "فك الكتم"], "") & filters.group)
+# --- تم تغيير "اكتم" إلى "كتم" في الفلتر ---
+@app.on_message(filters.command(["سماح", "شد سماح", "كتم", "شد ميوت", "فك الكتم"], "") & filters.group)
 async def admin_cmds_handler(_, message: Message):
     if not await has_permission(message.chat.id, message.from_user.id): return
     cmd = message.command[0]
@@ -184,7 +186,8 @@ async def admin_cmds_handler(_, message: Message):
         elif cmd == "شد سماح":
             await app.promote_chat_member(message.chat.id, user_id, privileges=ChatPrivileges(can_manage_chat=False))
             await message.reply(f"<b>• تم سحب السماح من {mention}</b>")
-        elif cmd == "اكتم":
+        # --- تم تغيير الشرط هنا أيضاً ---
+        elif cmd == "كتم":
             await app.restrict_chat_member(message.chat.id, user_id, ChatPermissions(can_send_messages=False))
             await message.reply(f"<b>• تم كتم {mention}</b>")
         elif cmd in ["شد ميوت", "فك الكتم"]:
@@ -296,7 +299,7 @@ async def protector_engine(_, message: Message):
         if not should_delete and "slashes" in locks and text.startswith("/"): should_delete = True
         if not should_delete and "long_msgs" in locks and len(text) > 800: should_delete = True
 
-    # فحص أنواع الميديا (تم تصحيح video_notes)
+    # فحص أنواع الميديا (مع وجود fix video_notes)
     if not should_delete:
         if "photos" in locks and message.photo: should_delete = True
         elif "videos" in locks and message.video: should_delete = True
@@ -305,7 +308,7 @@ async def protector_engine(_, message: Message):
         elif "docs" in locks and message.document: should_delete = True
         elif "voice" in locks and (message.voice or message.audio): should_delete = True
         elif "audio" in locks and message.audio: should_delete = True
-        elif "video_notes" in locks and message.video_note: should_delete = True # <--- تصحيح: إضافة السيلفي
+        elif "video_notes" in locks and message.video_note: should_delete = True 
         elif "contacts" in locks and message.contact: should_delete = True
         elif "inline" in locks and message.via_bot: should_delete = True
         elif "forward" in locks and (message.forward_date or message.forward_from): should_delete = True
@@ -354,10 +357,12 @@ async def get_kb(chat_id):
     for i in range(0, len(items), 2):
         row = []
         n1, k1 = items[i]; s1 = "مقفل" if k1 in active else "مفتوح"
-        row.append(InlineKeyboardButton(f"{n1} ⇽ {s1}", callback_data=f"trg_{k1}"))
+        # --- تعديل التنسيق هنا ---
+        row.append(InlineKeyboardButton(f"• {n1} ← {s1} •", callback_data=f"trg_{k1}"))
         if i + 1 < len(items):
             n2, k2 = items[i+1]; s2 = "مقفل" if k2 in active else "مفتوح"
-            row.append(InlineKeyboardButton(f"{n2} ⇽ {s2}", callback_data=f"trg_{k2}"))
+            # --- وتعديل التنسيق هنا أيضاً ---
+            row.append(InlineKeyboardButton(f"• {n2} ← {s2} •", callback_data=f"trg_{k2}"))
         kb.append(row)
     kb.append([InlineKeyboardButton("إغـلاق اللوحة", callback_data="close")])
     return InlineKeyboardMarkup(kb)
