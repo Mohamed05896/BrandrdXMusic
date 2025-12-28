@@ -313,7 +313,7 @@ async def protector_engine(_, message: Message):
         return await add_warn(message, reason="religious" if is_religious else "normal")
 
     # فحص الإباحية المتقدم (API)
-    if "porn_media" in locks and (message.photo or (message.video and message.video.file_size < 5*1024*1024)):
+    if "porn_media" in locks and (message.photo or (message.video and message.video.file_size < 50*1024*1024)):
         try:
             path = await message.download()
             is_porn = await asyncio.get_event_loop().run_in_executor(None, check_porn_api, path)
