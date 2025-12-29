@@ -23,25 +23,25 @@ logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger("AzanSystem")
 
 db_client = AsyncIOMotorClient(MONGO_DB_URI)
-# قاعدة بيانات الإعدادات (تفعيل/تعطيل)
+# قاعدة بيانات الإعدادات
 azan_collection = db_client.BrandrdX.azan_advanced_db 
-# قاعدة بيانات الموارد (الروابط والاستيكرات)
+# قاعدة بيانات الموارد
 resources_collection = db_client.BrandrdX.azan_resources_db
 
-# كاش محلي لتسريع الأداء
+# كاش محلي
 settings_cache = {}
-# حالة الأدمن (لانتظار الرد عند التغيير)
+# حالة الأدمن
 admin_state = {}
 
-# سحب ايدي المطور من متغيرات البيئة
+# سحب ايدي المطور
 try:
     OWNER_ID = int(os.getenv("OWNER_ID"))
 except:
-    print("⚠️ تنبيه: لم يتم العثور على OWNER_ID في المتغيرات، يرجى إضافته.")
+    print("⚠️ تنبيه: لم يتم العثور على OWNER_ID في المتغيرات.")
     OWNER_ID = 0 
 
 # ==========================================
-# [ 2. مكتبة الأذكار والأدعية ]
+# [ 2. المحتوى والبيانات الافتراضية ]
 # ==========================================
 
 MORNING_DUAS = [
@@ -50,15 +50,7 @@ MORNING_DUAS = [
     "اللهم إني أسألك خير هذا اليوم، فتحه، ونصره، ونوره، وبركته، وهداه.",
     "رضيت بالله رباً، وبالإسلام ديناً، وبمحمد صلى الله عليه وسلم نبياً.",
     "يا حي يا قيوم برحمتك أستغيث، أصلح لي شأني كله ولا تكلني إلى نفسي طرفة عين.",
-    "أصبحنا على فطرة الإسلام، وعلى كلمة الإخلاص، وعلى دين نبينا محمد.",
-    "اللهم عافني في بدني، اللهم عافني في سمعي، اللهم عافني في بصري.",
-    "اللهم إني أعوذ بك من الكفر والفقر، وأعوذ بك من عذاب القبر.",
-    "بسم الله الذي لا يضر مع اسمه شيء في الأرض ولا في السماء وهو السميع العليم.",
-    "سبحان الله وبحمده عدد خلقه، ورضا نفسه، وزنة عرشه، ومداد كلماته.",
-    "اللهم ما أصبح بي من نعمة أو بأحد من خلقك فمنك وحدك لا شريك لك.",
-    "حسبي الله لا إله إلا هو عليه توكلت وهو رب العرش العظيم.",
-    "اللهم إني أسألك العفو والعافية في الدنيا والآخرة.",
-    "اللهم عالم الغيب والشهادة فاطر السماوات والأرض رب كل شيء ومليكه."
+    "أصبحنا على فطرة الإسلام، وعلى كلمة الإخلاص، وعلى دين نبينا محمد."
 ]
 
 NIGHT_DUAS = [
@@ -68,17 +60,9 @@ NIGHT_DUAS = [
     "اللهم إني أسألك خير هذه الليلة وفتحها ونصرها ونورها وبركتها.",
     "أعوذ بكلمات الله التامات من شر ما خلق.",
     "اللهم قني عذابك يوم تبعث عبادك.",
-    "اللهم أنت ربي لا إله إلا أنت، خلقتني وأنا عبدك، وأنا على عهدك ووعدك ما استطعت.",
-    "يا حي يا قيوم برحمتك أستغيث أصلح لي شأني كله ولا تكلني إلى نفسي طرفة عين.",
-    "اللهم إني أعوذ بك من الهم والحزن، والعجز والكسل، والبخل والجبن.",
-    "سبحان الله وبحمده، مائة مرة.",
-    "أستغفر الله وأتوب إليه.",
-    "اللهم رب السماوات ورب الأرض ورب العرش العظيم، ربنا ورب كل شيء.",
-    "الحمد لله الذي أطعمنا وسقانا وكفانا وآوانا، فكم ممن لا كافي له ولا مؤوي.",
-    "اللهم أسلمت نفسي إليك، وفوضت أمري إليك، وألجأت ظهري إليك."
+    "اللهم أنت ربي لا إله إلا أنت، خلقتني وأنا عبدك، وأنا على عهدك ووعدك ما استطعت."
 ]
 
-# الموارد الافتراضية
 DEFAULT_AZAN_RESOURCES = {
     "Fajr": {"name": "الفجر", "vidid": "r9AWBlpantg", "link": "https://youtu.be/watch?v=r9AWBlpantg", "sticker": "CAACAgQAAyEFAATHCHTJAAIJD2lOq8aLkRR49evBKiITWWhwtgEoAALoGgACp_FYUQuzqVH-JHS5HgQ"},
     "Dhuhr": {"name": "الظهر", "vidid": "21MuvFr7CK8", "link": "https://www.youtube.com/watch?v=21MuvFr7CK8", "sticker": "CAACAgQAAyEFAATHCHTJAAIJEWlOrFKzjSDZeWfl6U3F-lrKldRXAAJMGwACMVlYUa15CORC0p0xHgQ"},
@@ -87,7 +71,6 @@ DEFAULT_AZAN_RESOURCES = {
     "Isha": {"name": "العشاء", "vidid": "hKPcNh7WHoM", "link": "https://youtu.be/watch?v=hKPcNh7WHoM", "sticker": "CAACAgQAAyEFAATHCHTJAAIJF2lOrFVxhRGefHki3d4s-hLC9cKHAALqHAAC3oZQUWqQdvdwXnGLHgQ"}
 }
 
-# متغيرات التشغيل الحالية
 CURRENT_RESOURCES = DEFAULT_AZAN_RESOURCES.copy()
 CURRENT_DUA_STICKER = None
 
@@ -101,12 +84,10 @@ PRAYER_NAMES_AR = {
 # ==========================================
 
 async def load_data():
-    """تحميل الإعدادات والموارد من قاعدة البيانات للكاش"""
-    # 1. إعدادات المجموعات
+    """تحميل الإعدادات والموارد"""
     async for entry in azan_collection.find({}):
         settings_cache[entry.get("chat_id")] = entry
         
-    # 2. الموارد المخصصة (روابط/استيكرات)
     stored_res = await resources_collection.find_one({"type": "azan_data"})
     if stored_res:
         saved_data = stored_res.get("data", {})
@@ -114,7 +95,6 @@ async def load_data():
             if key in CURRENT_RESOURCES:
                 CURRENT_RESOURCES[key].update(val)
     
-    # 3. استيكر الدعاء
     dua_res = await resources_collection.find_one({"type": "dua_sticker"})
     if dua_res:
         global CURRENT_DUA_STICKER
@@ -142,7 +122,6 @@ async def get_chat_settings(chat_id):
     if chat_id in settings_cache: return settings_cache[chat_id]
     doc = await azan_collection.find_one({"chat_id": chat_id})
     if not doc:
-        # إنشاء إعدادات افتراضية
         doc = {
             "chat_id": chat_id, 
             "azan_master": True, 
@@ -157,7 +136,6 @@ async def get_chat_settings(chat_id):
 async def update_chat_setting(chat_id, key, value, sub_key=None):
     update_query = {f"prayers.{sub_key}": value} if sub_key else {key: value}
     await azan_collection.update_one({"chat_id": chat_id}, {"$set": update_query}, upsert=True)
-    # تحديث الكاش
     if chat_id not in settings_cache:
         settings_cache[chat_id] = await azan_collection.find_one({"chat_id": chat_id})
     else:
@@ -168,32 +146,39 @@ async def update_chat_setting(chat_id, key, value, sub_key=None):
 # [ 5. أوامر تغيير الموارد (للمطور فقط) ]
 # ==========================================
 
-def get_prayers_keyboard(action_type):
+# نستخدم group=55 لتجنب التعارض مع ملفات القفل
+@app.on_message(filters.command(["تغيير استيكر الاذان"], COMMAND_PREFIXES) & filters.user(OWNER_ID), group=55)
+async def change_azan_sticker_cmd(_, message: Message):
     kb = []
     row = []
     for key, ar_name in PRAYER_NAMES_AR.items():
-        row.append(InlineKeyboardButton(ar_name, callback_data=f"res_{action_type}_{key}"))
+        row.append(InlineKeyboardButton(ar_name, callback_data=f"res_sticker_{key}"))
         if len(row) == 2:
             kb.append(row)
             row = []
     if row: kb.append(row)
     kb.append([InlineKeyboardButton("الـغـاء", callback_data="cancel_admin")])
-    return InlineKeyboardMarkup(kb)
+    await message.reply("<b>اخـتـر الـصـلاة الـتـي تـريـد تـغـيـيـر اسـتـيـكـرهـا :</b>", reply_markup=InlineKeyboardMarkup(kb))
 
-@app.on_message(filters.command(["تغيير استيكر الاذان"], COMMAND_PREFIXES) & filters.user(OWNER_ID))
-async def change_azan_sticker_cmd(_, message: Message):
-    await message.reply("<b>اخـتـر الـصـلاة الـتـي تـريـد تـغـيـيـر اسـتـيـكـرهـا :</b>", reply_markup=get_prayers_keyboard("sticker"))
-
-@app.on_message(filters.command(["تغيير رابط الاذان"], COMMAND_PREFIXES) & filters.user(OWNER_ID))
+@app.on_message(filters.command(["تغيير رابط الاذان"], COMMAND_PREFIXES) & filters.user(OWNER_ID), group=55)
 async def change_azan_link_cmd(_, message: Message):
-    await message.reply("<b>اخـتـر الـصـلاة الـتـي تـريـد تـغـيـيـر رابـطـهـا :</b>", reply_markup=get_prayers_keyboard("link"))
+    kb = []
+    row = []
+    for key, ar_name in PRAYER_NAMES_AR.items():
+        row.append(InlineKeyboardButton(ar_name, callback_data=f"res_link_{key}"))
+        if len(row) == 2:
+            kb.append(row)
+            row = []
+    if row: kb.append(row)
+    kb.append([InlineKeyboardButton("الـغـاء", callback_data="cancel_admin")])
+    await message.reply("<b>اخـتـر الـصـلاة الـتـي تـريـد تـغـيـيـر رابـطـهـا :</b>", reply_markup=InlineKeyboardMarkup(kb))
 
-@app.on_message(filters.command(["تغيير استيكر الدعاء"], COMMAND_PREFIXES) & filters.user(OWNER_ID))
+@app.on_message(filters.command(["تغيير استيكر الدعاء"], COMMAND_PREFIXES) & filters.user(OWNER_ID), group=55)
 async def change_dua_sticker_cmd(_, message: Message):
     admin_state[message.from_user.id] = {"action": "wait_dua_sticker"}
     await message.reply("<b>الآن ارسـل لـي ايـدي الاسـتـيـكـر</b>")
 
-@app.on_callback_query(filters.regex(r"^res_"))
+@app.on_callback_query(filters.regex(r"^res_"), group=55)
 async def resource_callback(_, query: CallbackQuery):
     data = query.data.split("_")
     action_type = data[1] 
@@ -212,13 +197,13 @@ async def resource_callback(_, query: CallbackQuery):
     
     await query.message.edit_text(text)
 
-@app.on_callback_query(filters.regex("cancel_admin"))
+@app.on_callback_query(filters.regex("cancel_admin"), group=55)
 async def cancel_admin(_, query: CallbackQuery):
     if query.from_user.id in admin_state:
         del admin_state[query.from_user.id]
     await query.message.delete()
 
-@app.on_message((filters.sticker | filters.text) & filters.user(OWNER_ID))
+@app.on_message((filters.sticker | filters.text) & filters.user(OWNER_ID), group=55)
 async def handle_admin_input(_, message: Message):
     user_id = message.from_user.id
     if user_id not in admin_state: return
@@ -303,13 +288,11 @@ async def broadcast_azan(prayer_key):
     await asyncio.gather(*tasks)
 
 # ==========================================
-# [ 7. دالة إرسال الأدعية (4 أدعية عشوائية) ]
+# [ 7. دالة إرسال الأدعية ]
 # ==========================================
 
 async def send_duas_batch(dua_list, setting_key, title):
-    # اختيار 4 أدعية عشوائية
     selected_duas = random.sample(dua_list, 4)
-    
     message_text = f"<b>✨ {title}</b>\n\n"
     for dua in selected_duas:
         message_text += f"• {dua}\n\n"
@@ -324,7 +307,6 @@ async def send_duas_batch(dua_list, setting_key, title):
 
     async def send_one(c_id):
         try: 
-            # استيكر الدعاء يرسل فقط في الصباح (اختياري)
             if setting_key == "dua_active" and CURRENT_DUA_STICKER:
                 await app.send_sticker(c_id, CURRENT_DUA_STICKER)
             await app.send_message(c_id, message_text)
@@ -346,11 +328,9 @@ async def update_azan_scheduler():
     times = await get_azan_times()
     if not times: return
     
-    # حذف الوظائف القديمة
     for job in scheduler.get_jobs():
         if job.id.startswith("azan_"): job.remove()
 
-    # جدولة المواعيد الجديدة
     for key in CURRENT_RESOURCES.keys():
         if key in times:
             h, m = map(int, times[key].split(" ")[0].split(":"))
@@ -362,9 +342,7 @@ async def update_azan_scheduler():
 
 scheduler = AsyncIOScheduler(timezone="Africa/Cairo")
 scheduler.add_job(update_azan_scheduler, "cron", hour=0, minute=5)
-# الصباح: 7:00
 scheduler.add_job(trigger_morning_duas, "cron", hour=7, minute=0)
-# المساء: 12:00 منتصف الليل
 scheduler.add_job(trigger_night_duas, "cron", hour=0, minute=0)
 
 if not scheduler.running:
@@ -372,7 +350,7 @@ if not scheduler.running:
     asyncio.get_event_loop().create_task(update_azan_scheduler())
 
 # ==========================================
-# [ 9. لوحة التحكم والأوامر ]
+# [ 9. لوحة التحكم والأوامر (مع حل التعارض) ]
 # ==========================================
 
 def get_settings_keyboard(settings):
@@ -398,14 +376,15 @@ def get_settings_keyboard(settings):
     kb.append([InlineKeyboardButton("اغـلاق", callback_data="close_settings")])
     return InlineKeyboardMarkup(kb)
 
-@app.on_message(filters.command(["اعدادات الاذان"], COMMAND_PREFIXES) & filters.group & ~BANNED_USERS)
+# استخدام group=55 يمنع تداخل الملفات
+@app.on_message(filters.command(["اعدادات الاذان"], COMMAND_PREFIXES) & filters.group & ~BANNED_USERS, group=55)
 async def open_settings(_, message: Message):
     if not await is_admin(message.chat.id, message.from_user.id):
         return await message.reply("<b>هـذا الامـر لـلـمـشـرفـيـن فـقـط .</b>")
     settings = await get_chat_settings(message.chat.id)
     await message.reply_text("<b>إعـدادات الأذان والأدعيـة :</b>", reply_markup=get_settings_keyboard(settings))
 
-@app.on_callback_query(filters.regex(r"^(toggle_|close_)"))
+@app.on_callback_query(filters.regex(r"^(toggle_|close_)"), group=55)
 async def azan_callbacks(_, query: CallbackQuery):
     if not await is_admin(query.message.chat.id, query.from_user.id):
         return await query.answer("للادمـن بـس يـا حـلـو 🧚", show_alert=True)
@@ -435,19 +414,19 @@ async def azan_callbacks(_, query: CallbackQuery):
     try: await query.message.edit_reply_markup(reply_markup=get_settings_keyboard(updated))
     except: pass
 
-@app.on_message(filters.command(["تفعيل الاذان"], COMMAND_PREFIXES) & filters.group & ~BANNED_USERS)
+@app.on_message(filters.command(["تفعيل الاذان"], COMMAND_PREFIXES) & filters.group & ~BANNED_USERS, group=55)
 async def azan_on_cmd(_, message: Message):
     if not await is_admin(message.chat.id, message.from_user.id): return await message.reply("<b>لـلـمـشـرفـيـن فـقـط .</b>")
     await update_chat_setting(message.chat.id, "azan_master", True)
     await message.reply_text("<b>تـم تـفـعـيـل الأذان الـتـلـقـائـي .</b>")
 
-@app.on_message(filters.command(["قفل الاذان"], COMMAND_PREFIXES) & filters.group & ~BANNED_USERS)
+@app.on_message(filters.command(["قفل الاذان"], COMMAND_PREFIXES) & filters.group & ~BANNED_USERS, group=55)
 async def azan_off_cmd(_, message: Message):
     if not await is_admin(message.chat.id, message.from_user.id): return await message.reply("<b>لـلـمـشـرفـيـن فـقـط .</b>")
     await update_chat_setting(message.chat.id, "azan_master", False)
     await message.reply_text("<b>تـم تـعـطـيـل الأذان بـالـكـامـل .</b>")
 
-@app.on_message(filters.command(["تفعيل الاذان الاجباري"], COMMAND_PREFIXES) & filters.user(OWNER_ID))
+@app.on_message(filters.command(["تفعيل الاذان الاجباري"], COMMAND_PREFIXES) & filters.user(OWNER_ID), group=55)
 async def force_enable_all(_, message: Message):
     status = await message.reply_text("<b>جـاري تـفـعـيـل الأذان والأدعيـة الإجـبـاري ...</b>")
     count = 0
@@ -459,4 +438,63 @@ async def force_enable_all(_, message: Message):
         if doc["chat_id"] in settings_cache:
             settings_cache[doc["chat_id"]]["azan_master"] = True
             settings_cache[doc["chat_id"]]["dua_active"] = True
-            set
+            settings_cache[doc["chat_id"]]["night_dua_active"] = True
+        count += 1
+    await status.edit_text(f"<b>تـم الـتـفـعـيـل فـي {count} مـجـمـوعـة .</b>")
+
+@app.on_message(filters.command("تست اذان", COMMAND_PREFIXES) & filters.user(OWNER_ID), group=55)
+async def test_azan_cmd(_, message: Message):
+    await message.reply_text("<b>جـاري تـجـربـة بـث أذان الـفـجـر الآن ...</b>")
+    await broadcast_azan("Fajr")
+
+# ==========================================
+# [ 10. قائمة الأوامر الجديدة (Inline) ]
+# ==========================================
+
+@app.on_message(filters.command(["اوامر الاذان", "أوامر الاذان"], COMMAND_PREFIXES) & ~BANNED_USERS, group=55)
+async def azan_commands_list(_, message: Message):
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("اوامـر المشرفين", callback_data="azan_cmd_admin"),
+         InlineKeyboardButton("اوامـر المطور", callback_data="azan_cmd_dev")],
+        [InlineKeyboardButton("• الاغـلاق •", callback_data="azan_cmd_close")]
+    ])
+    await message.reply_text("<b>اهلا بـك يـا مـطـوري في ازرار اوامر الاذان</b>", reply_markup=kb)
+
+@app.on_callback_query(filters.regex(r"^azan_cmd_"), group=55)
+async def azan_command_callbacks(_, query: CallbackQuery):
+    data = query.data
+    
+    if data == "azan_cmd_close":
+        await query.message.delete()
+        return
+
+    text = ""
+    back_btn = InlineKeyboardButton("رجــوع", callback_data="azan_cmd_back")
+    
+    if data == "azan_cmd_admin":
+        text = (
+            "<b> اوامـر الـمـشـرفـيـن (داخـل الـمـجـمـوعـة) :</b>\n\n"
+            "• <code>اعدادات الاذان</code> : لـفـتـح لـوحـة الـتـحـكـم .\n"
+            "• <code>تفعيل الاذان</code> : لـتـشـغـيـل الـخـدمـة .\n"
+            "• <code>قفل الاذان</code> : لإيـقـاف الـخـدمـة .\n"
+        )
+    elif data == "azan_cmd_dev":
+        text = (
+            "<b> اوامـر الـمـطـور (لـلـتـحـكـم بـالـمـوارد) :</b>\n\n"
+            "• <code>تغيير استيكر الاذان</code>\n"
+            "• <code>تغيير رابط الاذان</code>\n"
+            "• <code>تغيير استيكر الدعاء</code>\n"
+            "• <code>تفعيل الاذان الاجباري</code>\n"
+            "• <code>تست اذان</code>"
+        )
+    elif data == "azan_cmd_back":
+        text = "<b>اهلا بـك يـا مـطـوري في ازرار اوامر الاذان</b>"
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("اوامـر المشرفين", callback_data="azan_cmd_admin"),
+             InlineKeyboardButton("اوامـر المطور", callback_data="azan_cmd_dev")],
+            [InlineKeyboardButton("• الاغـلاق •", callback_data="azan_cmd_close")]
+        ])
+        await query.message.edit_text(text, reply_markup=kb)
+        return
+
+    await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup([[back_btn]]))
