@@ -463,4 +463,63 @@ async def force_enable_all(_, message: Message):
         if doc["chat_id"] in settings_cache:
             settings_cache[doc["chat_id"]]["azan_master"] = True
             settings_cache[doc["chat_id"]]["dua_active"] = True
-            settings_cache[doc["chat_id"]]["night_d
+            settings_cache[doc["chat_id"]]["night_dua_active"] = True
+        count += 1
+    await status.edit_text(f"<b>تـم الـتـفـعـيـل فـي {count} مـجـمـوعـة .</b>")
+
+@app.on_message(filters.command("تست اذان", COMMAND_PREFIXES) & filters.user(OWNER_ID), group=55)
+async def test_azan_cmd(_, message: Message):
+    await message.reply_text("<b>جـاري تـجـربـة بـث أذان الـفـجـر الآن ...</b>")
+    await broadcast_azan("Fajr")
+
+# ==========================================
+# [ 10. قائمة الأوامر الجديدة (Inline) ]
+# ==========================================
+
+@app.on_message(filters.command(["اوامر الاذان", "أوامر الاذان"], COMMAND_PREFIXES) & ~BANNED_USERS, group=55)
+async def azan_commands_list(_, message: Message):
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("اوامـر المشرفين", callback_data="azan_cmd_admin"),
+         InlineKeyboardButton("اوامـر المطور", callback_data="azan_cmd_dev")],
+        [InlineKeyboardButton("• الاغـلاق •", callback_data="azan_cmd_close")]
+    ])
+    await message.reply_text("<b>اهلا بـك يـا مـطـوري في ازرار اوامر الاذان</b>", reply_markup=kb)
+
+@app.on_callback_query(filters.regex(r"^azan_cmd_"), group=55)
+async def azan_command_callbacks(_, query: CallbackQuery):
+    data = query.data
+    
+    if data == "azan_cmd_close":
+        await query.message.delete()
+        return
+
+    text = ""
+    back_btn = InlineKeyboardButton("رجــوع", callback_data="azan_cmd_back")
+    
+    if data == "azan_cmd_admin":
+        text = (
+            "<b> اوامـر الـمـشـرفـيـن (داخـل الـمـجـمـوعـة) :</b>\n\n"
+            "• <code>اعدادات الاذان</code> : لـفـتـح لـوحـة الـتـحـكـم .\n"
+            "• <code>تفعيل الاذان</code> : لـتـشـغـيـل الـخـدمـة .\n"
+            "• <code>قفل الاذان</code> : لإيـقـاف الـخـدمـة .\n"
+        )
+    elif data == "azan_cmd_dev":
+        text = (
+            "<b> اوامـر الـمـطـور (لـلـتـحـكـم بـالـمـوارد) :</b>\n\n"
+            "• <code>تغيير استيكر الاذان</code>\n"
+            "• <code>تغيير رابط الاذان</code>\n"
+            "• <code>تغيير استيكر الدعاء</code>\n"
+            "• <code>تفعيل الاذان الاجباري</code>\n"
+            "• <code>تست اذان</code>"
+        )
+    elif data == "azan_cmd_back":
+        text = "<b>اهلا بـك يـا مـطـوري في ازرار اوامر الاذان</b>"
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("اوامـر المشرفين", callback_data="azan_cmd_admin"),
+             InlineKeyboardButton("اوامـر المطور", callback_data="azan_cmd_dev")],
+            [InlineKeyboardButton("• الاغـلاق •", callback_data="azan_cmd_close")]
+        ])
+        await query.message.edit_text(text, reply_markup=kb)
+        return
+
+    await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup([[back_btn]]))
