@@ -13,6 +13,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import config
 from config import BANNED_USERS, COMMAND_PREFIXES, MONGO_DB_URI
 from BrandrdXMusic import app
+# استيراد دالة الستريم كما في ملفك
 from BrandrdXMusic.utils.stream.stream import stream
 
 # ==========================================
@@ -33,12 +34,8 @@ settings_cache = {}
 # حالة الأدمن
 admin_state = {}
 
-# سحب ايدي المطور
-try:
-    OWNER_ID = int(os.getenv("OWNER_ID"))
-except:
-    print("⚠️ تنبيه: لم يتم العثور على OWNER_ID في المتغيرات.")
-    OWNER_ID = 0 
+# === [ الايدي المثبت ] ===
+OWNER_ID = 8313557781
 
 # ==========================================
 # [ 2. المحتوى والبيانات الافتراضية ]
@@ -50,7 +47,13 @@ MORNING_DUAS = [
     "اللهم إني أسألك خير هذا اليوم، فتحه، ونصره، ونوره، وبركته، وهداه.",
     "رضيت بالله رباً، وبالإسلام ديناً، وبمحمد صلى الله عليه وسلم نبياً.",
     "يا حي يا قيوم برحمتك أستغيث، أصلح لي شأني كله ولا تكلني إلى نفسي طرفة عين.",
-    "أصبحنا على فطرة الإسلام، وعلى كلمة الإخلاص، وعلى دين نبينا محمد."
+    "أصبحنا على فطرة الإسلام، وعلى كلمة الإخلاص، وعلى دين نبينا محمد.",
+    "اللهم عافني في بدني، اللهم عافني في سمعي، اللهم عافني في بصري.",
+    "اللهم إني أعوذ بك من الكفر والفقر، وأعوذ بك من عذاب القبر.",
+    "بسم الله الذي لا يضر مع اسمه شيء في الأرض ولا في السماء وهو السميع العليم.",
+    "سبحان الله وبحمده عدد خلقه، ورضا نفسه، وزنة عرشه، ومداد كلماته.",
+    "اللهم ما أصبح بي من نعمة أو بأحد من خلقك فمنك وحدك لا شريك لك.",
+    "حسبي الله لا إله إلا هو عليه توكلت وهو رب العرش العظيم."
 ]
 
 NIGHT_DUAS = [
@@ -60,7 +63,12 @@ NIGHT_DUAS = [
     "اللهم إني أسألك خير هذه الليلة وفتحها ونصرها ونورها وبركتها.",
     "أعوذ بكلمات الله التامات من شر ما خلق.",
     "اللهم قني عذابك يوم تبعث عبادك.",
-    "اللهم أنت ربي لا إله إلا أنت، خلقتني وأنا عبدك، وأنا على عهدك ووعدك ما استطعت."
+    "اللهم أنت ربي لا إله إلا أنت، خلقتني وأنا عبدك، وأنا على عهدك ووعدك ما استطعت.",
+    "يا حي يا قيوم برحمتك أستغيث أصلح لي شأني كله ولا تكلني إلى نفسي طرفة عين.",
+    "اللهم إني أعوذ بك من الهم والحزن، والعجز والكسل، والبخل والجبن.",
+    "سبحان الله وبحمده، مائة مرة.",
+    "أستغفر الله وأتوب إليه.",
+    "اللهم رب السماوات ورب الأرض ورب العرش العظيم، ربنا ورب كل شيء."
 ]
 
 DEFAULT_AZAN_RESOURCES = {
@@ -146,7 +154,7 @@ async def update_chat_setting(chat_id, key, value, sub_key=None):
 # [ 5. أوامر تغيير الموارد (للمطور فقط) ]
 # ==========================================
 
-# نستخدم group=55 لتجنب التعارض مع ملفات القفل
+# نستخدم group=55 لتجنب التعارض
 @app.on_message(filters.command(["تغيير استيكر الاذان"], COMMAND_PREFIXES) & filters.user(OWNER_ID), group=55)
 async def change_azan_sticker_cmd(_, message: Message):
     kb = []
@@ -264,15 +272,32 @@ async def play_azan_in_chat(chat_id, res, fake_result, semaphore):
             await app.send_sticker(chat_id, res["sticker"])
             caption = f"<b>حـان الآن مـوعـد اذان {res['name']}</b>\n<b>بـالـتـوقـيـت الـمـحـلـي لـمـديـنـة الـقـاهـرة 🕌</b>"
             mystic = await app.send_message(chat_id, caption)
-            await stream(_, mystic, app.id, fake_result, chat_id, "خدمة الأذان", chat_id, video=False, streamtype="youtube", forceplay=True)
-        except:
+            
+            # استدعاء دالة ستريم المتوافقة مع سورس BrandrdXMusic
+            await stream(
+                _, 
+                mystic, 
+                OWNER_ID, 
+                fake_result, 
+                chat_id, 
+                "خدمة الأذان", 
+                chat_id, 
+                video=False, 
+                streamtype="youtube", 
+                forceplay=True
+            )
+        except Exception as e:
+            # logger.error(f"Error playing Azan in {chat_id}: {e}")
             pass
 
 async def broadcast_azan(prayer_key):
     res = CURRENT_RESOURCES[prayer_key]
     fake_result = {
-        "link": res["link"], "vidid": res["vidid"], "title": f"أذان {res['name']}", 
-        "duration_min": "05:00", "thumb": f"https://img.youtube.com/vi/{res['vidid']}/hqdefault.jpg"
+        "link": res["link"], 
+        "vidid": res["vidid"], 
+        "title": f"أذان {res['name']}", 
+        "duration_min": "05:00", 
+        "thumb": f"https://img.youtube.com/vi/{res['vidid']}/hqdefault.jpg"
     }
     
     target_chats = []
@@ -288,7 +313,7 @@ async def broadcast_azan(prayer_key):
     await asyncio.gather(*tasks)
 
 # ==========================================
-# [ 7. دالة إرسال الأدعية ]
+# [ 7. دالة إرسال الأدعية (4 أدعية عشوائية) ]
 # ==========================================
 
 async def send_duas_batch(dua_list, setting_key, title):
@@ -438,63 +463,4 @@ async def force_enable_all(_, message: Message):
         if doc["chat_id"] in settings_cache:
             settings_cache[doc["chat_id"]]["azan_master"] = True
             settings_cache[doc["chat_id"]]["dua_active"] = True
-            settings_cache[doc["chat_id"]]["night_dua_active"] = True
-        count += 1
-    await status.edit_text(f"<b>تـم الـتـفـعـيـل فـي {count} مـجـمـوعـة .</b>")
-
-@app.on_message(filters.command("تست اذان", COMMAND_PREFIXES) & filters.user(OWNER_ID), group=55)
-async def test_azan_cmd(_, message: Message):
-    await message.reply_text("<b>جـاري تـجـربـة بـث أذان الـفـجـر الآن ...</b>")
-    await broadcast_azan("Fajr")
-
-# ==========================================
-# [ 10. قائمة الأوامر الجديدة (Inline) ]
-# ==========================================
-
-@app.on_message(filters.command(["اوامر الاذان", "أوامر الاذان"], COMMAND_PREFIXES) & ~BANNED_USERS, group=55)
-async def azan_commands_list(_, message: Message):
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("اوامـر المشرفين", callback_data="azan_cmd_admin"),
-         InlineKeyboardButton("اوامـر المطور", callback_data="azan_cmd_dev")],
-        [InlineKeyboardButton("• الاغـلاق •", callback_data="azan_cmd_close")]
-    ])
-    await message.reply_text("<b>اهلا بـك يـا مـطـوري في ازرار اوامر الاذان</b>", reply_markup=kb)
-
-@app.on_callback_query(filters.regex(r"^azan_cmd_"), group=55)
-async def azan_command_callbacks(_, query: CallbackQuery):
-    data = query.data
-    
-    if data == "azan_cmd_close":
-        await query.message.delete()
-        return
-
-    text = ""
-    back_btn = InlineKeyboardButton("رجــوع", callback_data="azan_cmd_back")
-    
-    if data == "azan_cmd_admin":
-        text = (
-            "<b> اوامـر الـمـشـرفـيـن (داخـل الـمـجـمـوعـة) :</b>\n\n"
-            "• <code>اعدادات الاذان</code> : لـفـتـح لـوحـة الـتـحـكـم .\n"
-            "• <code>تفعيل الاذان</code> : لـتـشـغـيـل الـخـدمـة .\n"
-            "• <code>قفل الاذان</code> : لإيـقـاف الـخـدمـة .\n"
-        )
-    elif data == "azan_cmd_dev":
-        text = (
-            "<b> اوامـر الـمـطـور (لـلـتـحـكـم بـالـمـوارد) :</b>\n\n"
-            "• <code>تغيير استيكر الاذان</code>\n"
-            "• <code>تغيير رابط الاذان</code>\n"
-            "• <code>تغيير استيكر الدعاء</code>\n"
-            "• <code>تفعيل الاذان الاجباري</code>\n"
-            "• <code>تست اذان</code>"
-        )
-    elif data == "azan_cmd_back":
-        text = "<b>اهلا بـك يـا مـطـوري في ازرار اوامر الاذان</b>"
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("اوامـر المشرفين", callback_data="azan_cmd_admin"),
-             InlineKeyboardButton("اوامـر المطور", callback_data="azan_cmd_dev")],
-            [InlineKeyboardButton("• الاغـلاق •", callback_data="azan_cmd_close")]
-        ])
-        await query.message.edit_text(text, reply_markup=kb)
-        return
-
-    await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup([[back_btn]]))
+            settings_cache[doc["chat_id"]]["night_d
