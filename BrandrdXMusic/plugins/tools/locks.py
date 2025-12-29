@@ -12,6 +12,7 @@ from pyrogram.types import (
 from fuzzywuzzy import fuzz
 from motor.motor_asyncio import AsyncIOMotorClient
 
+# محاولة استيراد مكتبة CV2 للكشف عن الفيديو، اذا لم توجد يتم استخدام API فقط
 try:
     import cv2
     CV2_AVAILABLE = True
@@ -33,7 +34,7 @@ from config import MONGO_DB_URI
 API_USER = "1800965377"
 API_SECRET = "pp32KRVBbfQjJXqLYoah7goaU949hwjU"
 
-# [تعديل] استخدام الرابط من الكونفج مباشرة
+# [تعديل] استخدام الرابط من الكونفج مباشرة مع وضع قيمة احتياطية
 if not MONGO_DB_URI:
     MONGO_DB_URI = "mongodb://localhost:27017"
 
@@ -46,9 +47,10 @@ db_warns = db.warns
 flood_cache = {} 
 processed_cache = {}
 
-# تعريف البادئات المسموح بها
+# تعريف البادئات المسموح بها للأوامر
 CMD_PREFIXES = ["", "/", "!", ".", "#"]
 
+# خريطة الأقفال (الاسم بالعربي : المفتاح في قاعدة البيانات)
 LOCK_MAP = {
     "الروابط": "links", "المعرفات": "usernames", "التاك": "hashtags",
     "الشارحه": "slashes", "التثبيت": "pin", "المتحركه": "animations",
@@ -61,6 +63,7 @@ LOCK_MAP = {
     "الاباحي": "porn_media"
 }
 
+# خريطة الأسماء المزخرفة للردود
 PRETTY_MAP = {
     "الروابط": "الـروابـط", "المعرفات": "الـمـعـرفـات", "التاك": "الـتـاك",
     "الشارحه": "الـشـارحـة", "التثبيت": "الـتـثـبـيـت", "المتحركه": "الـمـتـحـركـة",
@@ -131,6 +134,7 @@ async def has_permission(chat_id, user_id):
 
 async def force_delete(chat_id, current_id, limit):
     count = 0
+    # إنشاء قائمة بمعرفات الرسائل بشكل عكسي من الرسالة الحالية
     msg_ids = list(range(current_id, current_id - (limit + 50), -1))
     for i in range(0, len(msg_ids), 100):
         if count >= limit: break
@@ -240,7 +244,6 @@ async def admin_cmds_handler(_, message: Message):
             await app.restrict_chat_member(message.chat.id, user_id, ChatPermissions(can_send_messages=True))
             await message.reply(f"<b>• تـم فـك كـتـم {mention}</b>")
     except Exception as e:
-        print(e)
         pass
 
 @app.on_message(filters.command("تحذيرات", prefixes=CMD_PREFIXES) & filters.group & ~BANNED_USERS)
