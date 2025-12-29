@@ -22,7 +22,7 @@ except ImportError:
 import config
 from BrandrdXMusic import app
 from BrandrdXMusic.misc import SUDOERS
-from config import BANNED_USERS # يفضل استيراد قائمة المحظورين لتجنب الأخطاء
+from config import BANNED_USERS
 
 # =========================================================
 # [ 1 ] إعدادات الاتصال والبيانات
@@ -41,8 +41,7 @@ db_warns = db.warns
 flood_cache = {} 
 processed_cache = {}
 
-# تعريف البادئات المسموح بها (بدون، سلاش، علامة تعجب، نقطة)
-# هذا يحل مشكلة عدم استجابة الأوامر النصية
+# تعريف البادئات المسموح بها
 CMD_PREFIXES = ["", "/", "!", ".", "#"]
 
 LOCK_MAP = {
@@ -193,7 +192,6 @@ async def add_warn(message: Message, reason="normal"):
 # [ 4 ] أوامر الإدارة (Admin Commands)
 # =========================================================
 
-# تم تعديل البادئات لتعمل بـ / و ! وبدون بادئة
 @app.on_message(filters.command(["سماح", "شد سماح", "كتم", "شد ميوت", "فك الكتم"], prefixes=CMD_PREFIXES) & filters.group & ~BANNED_USERS)
 async def admin_cmds_handler(_, message: Message):
     if not await has_permission(message.chat.id, message.from_user.id): 
@@ -380,17 +378,14 @@ async def protector_engine(_, message: Message):
 # [ 7 ] أوامر القفل والفتح (Lock Commands)
 # =========================================================
 
-# هنا يكمن الإصلاح الرئيسي: تفعيل البادئات المتعددة
 @app.on_message(filters.command(["قفل", "فتح"], prefixes=CMD_PREFIXES) & filters.group & ~BANNED_USERS)
 async def toggle_lock(_, message: Message):
     if not await has_permission(message.chat.id, message.from_user.id): 
         return await message.reply("↢ يا شـاطـر الامـر لـ ↢ 〔 الادمـن 〕 بـس .")
     
-    # التأكد من وجود نص الأمر
     if len(message.command) < 2: return
     
     cmd = message.command[0]
-    # استخدام message.command[1] بدلاً من القص اليدوي للنص لضمان الدقة
     input_text = message.command[1]
     
     key = LOCK_MAP.get(input_text)
@@ -455,4 +450,22 @@ async def callback(_, cb: CallbackQuery):
         try: return await cb.message.delete()
         except: pass
         
-    if cb.data == "total_des
+    if cb.data == "total_destruction":  
+        await cb.answer("جـاري الـنـسـف...", show_alert=True)  
+        await cb.message.edit("<b>جـاري الـتـدمـيـر...</b>")  
+        deleted = await force_delete(cb.message.chat.id, cb.message.id, 500)  
+        await app.send_message(cb.message.chat.id, f"<b>تـم تـدمـيـر {deleted} رسـالـة</b>")  
+        await cb.message.delete()  
+    elif cb.data.startswith("trg_"):  
+        key = cb.data.replace("trg_", "")
+        locks = await get_locks(cb.message.chat.id)
+        if key in locks: await update_lock(cb.message.chat.id, key, False)
+        else: await update_lock(cb.message.chat.id, key, True)
+        try: await cb.message.edit_reply_markup(reply_markup=await get_kb(cb.message.chat.id))
+        except: pass
+    elif cb.data.startswith("u_unmute_"):  
+        u_id = int(cb.data.split("_")[2])  
+        try:
+            await app.restrict_chat_member(cb.message.chat.id, u_id, ChatPermissions(can_send_messages=True))  
+            await cb.message.edit(f"<b>• تـم فـك الـكـتـم</b>")
+        except: pass
