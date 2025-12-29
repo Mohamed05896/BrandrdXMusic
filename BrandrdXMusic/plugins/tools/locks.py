@@ -12,7 +12,6 @@ from pyrogram.types import (
 from fuzzywuzzy import fuzz
 from motor.motor_asyncio import AsyncIOMotorClient
 
-# محاولة استيراد cv2 لفحص الفيديو من الداخل
 try:
     import cv2
     CV2_AVAILABLE = True
@@ -20,33 +19,32 @@ except ImportError:
     CV2_AVAILABLE = False
 
 # --- استيراد كائن البوت وقائمة المطورين من ملفات السورس ---
+import config
 from BrandrdXMusic import app
 from BrandrdXMusic.misc import SUDOERS
+from config import BANNED_USERS # يفضل استيراد قائمة المحظورين لتجنب الأخطاء
 
 # =========================================================
-# [ 1 ] إعدادات الاتصال والبيانات (Data Configuration)
+# [ 1 ] إعدادات الاتصال والبيانات
 # =========================================================
 
-# بيانات API لفحص الصور (Sightengine)
 API_USER = "1800965377"
 API_SECRET = "pp32KRVBbfQjJXqLYoah7goaU949hwjU"
 
-# سحب رابط قاعدة البيانات من المتغيرات (أو استخدام الافتراضي)
 MONGO_DB_URI = os.getenv("MONGO_DB_URI") or "mongodb://localhost:27017"
-mongo_client = AsyncIOMotorClient(MONGO_DB_URI) # إنشاء اتصال غير متزامن
-db = mongo_client.protection_bot # اسم قاعدة البيانات
+mongo_client = AsyncIOMotorClient(MONGO_DB_URI)
+db = mongo_client.protection_bot
 
-# تعريف المجموعات (Collections)
-db_locks = db.locks   # لتخزين حالة الأقفال
-db_warns = db.warns   # لتخزين التحذيرات
+db_locks = db.locks   
+db_warns = db.warns   
 
-# ذاكرة مؤقتة (RAM) لفحص التكرار بسرعة عالية
 flood_cache = {} 
-
-# ذاكرة لمنع تكرار الرد (خاصة بالحماية فقط)
 processed_cache = {}
 
-# خريطة الأقفال (الاسم العربي : المفتاح البرمجي)
+# تعريف البادئات المسموح بها (بدون، سلاش، علامة تعجب، نقطة)
+# هذا يحل مشكلة عدم استجابة الأوامر النصية
+CMD_PREFIXES = ["", "/", "!", ".", "#"]
+
 LOCK_MAP = {
     "الروابط": "links", "المعرفات": "usernames", "التاك": "hashtags",
     "الشارحه": "slashes", "التثبيت": "pin", "المتحركه": "animations",
@@ -59,7 +57,6 @@ LOCK_MAP = {
     "الاباحي": "porn_media"
 }
 
-# قائمة الأسماء المنسقة
 PRETTY_MAP = {
     "الروابط": "الـروابـط", "المعرفات": "الـمـعـرفـات", "التاك": "الـتـاك",
     "الشارحه": "الـشـارحـة", "التثبيت": "الـتـثـبـيـت", "المتحركه": "الـمـتـحـركـة",
@@ -72,11 +69,10 @@ PRETTY_MAP = {
     "الاباحي": "الإبـاحـي"
 }
 
-# قائمة الكلمات المحظورة
 BAD_WORDS = ["سكس", "نيك", "شرموط", "منيوك", "كسمك", "زب", "فحل", "بورن", "متناك", "مص", "كس", "طيز", "قحبه", "فاجره", "احاا", "متناكه", "خول"]
 
 # =========================================================
-# [ 2 ] دوال قاعدة البيانات (Database Logic)
+# [ 2 ] دوال قاعدة البيانات
 # =========================================================
 
 async def get_locks(chat_id):
@@ -106,7 +102,7 @@ async def update_user_warns(chat_id, user_id, count):
     await db_warns.update_one({"chat_id": chat_id}, {"$set": {f"users.{user_id}": count}}, upsert=True)
 
 # =========================================================
-# [ 3 ] الدوال المساعدة والمنطق (Helpers)
+# [ 3 ] الدوال المساعدة والمنطق
 # =========================================================
 
 async def has_permission(chat_id, user_id):
@@ -128,7 +124,6 @@ async def force_delete(chat_id, current_id, limit):
         except: continue
     return count
 
-# دالة فحص الصورة عبر API
 def check_porn_api(file_path):
     try:
         params = {'models': 'nudity-2.0', 'api_user': API_USER, 'api_secret': API_SECRET}
@@ -137,50 +132,33 @@ def check_porn_api(file_path):
         output = r.json()
         if output.get('status') == 'success':
             n = output.get('nudity', {})
-            # إذا كانت النسبة أعلى من 0.5 (50%) يعتبر إباحي
             return n.get('sexual_display', 0) > 0.5 or n.get('erotica', 0) > 0.5
     except: pass
     return False
 
-# دالة فحص الفيديو الشامل (Deep Scan)
 def scan_video_frames(video_path):
     if not CV2_AVAILABLE:
-        # إذا لم تكن المكتبة موجودة، افحص الفيديو كملف واحد (قد يفشل)
         return check_porn_api(video_path)
-    
     is_detected = False
     try:
         cam = cv2.VideoCapture(video_path)
         total_frames = int(cam.get(cv2.CAP_PROP_FRAME_COUNT))
-        
         if total_frames > 0:
-            # نقاط الفحص: 10% (البداية)، 50% (المنتصف)، 90% (النهاية)
             check_points = [0.1, 0.5, 0.9]
-            
             for point in check_points:
-                # الانتقال للإطار المحدد
                 frame_id = int(total_frames * point)
                 cam.set(cv2.CAP_PROP_POS_FRAMES, frame_id)
                 ret, frame = cam.read()
-                
                 if ret:
-                    # حفظ إطار مؤقت
                     temp_frame = video_path + f"_check_{int(point*100)}.jpg"
                     cv2.imwrite(temp_frame, frame)
-                    
-                    # فحص الإطار
                     if check_porn_api(temp_frame):
                         is_detected = True
                         os.remove(temp_frame)
-                        break # توقف فوراً إذا وجدت شيئاً
-                    
-                    # حذف الإطار المؤقت
+                        break 
                     if os.path.exists(temp_frame): os.remove(temp_frame)
-        
         cam.release()
-    except:
-        pass
-        
+    except: pass
     return is_detected
 
 async def add_warn(message: Message, reason="normal"):
@@ -195,7 +173,6 @@ async def add_warn(message: Message, reason="normal"):
     else:  
         limit = await get_warn_limit(c_id)  
         mute_days = 1   
-        # تحويل النص ليكون ممدوداً
         msg_text = f"<b>يـا {mention} ، تـم حـذف رسـالـتـك لـمـخـالـفـة قـوانـيـن الـحـمـايـة</b>"  
 
     current = await get_current_warns(c_id, u_id)
@@ -216,9 +193,9 @@ async def add_warn(message: Message, reason="normal"):
 # [ 4 ] أوامر الإدارة (Admin Commands)
 # =========================================================
 
-@app.on_message(filters.command(["سماح", "شد سماح", "كتم", "شد ميوت", "فك الكتم"], "") & filters.group)
+# تم تعديل البادئات لتعمل بـ / و ! وبدون بادئة
+@app.on_message(filters.command(["سماح", "شد سماح", "كتم", "شد ميوت", "فك الكتم"], prefixes=CMD_PREFIXES) & filters.group & ~BANNED_USERS)
 async def admin_cmds_handler(_, message: Message):
-    # الرد على العضو غير المشرف
     if not await has_permission(message.chat.id, message.from_user.id): 
         return await message.reply("↢ يا شـاطـر الامـر لـ ↢ 〔 الادمـن 〕 بـس .")
         
@@ -245,11 +222,12 @@ async def admin_cmds_handler(_, message: Message):
         elif cmd in ["شد ميوت", "فك الكتم"]:
             await app.restrict_chat_member(message.chat.id, user_id, ChatPermissions(can_send_messages=True))
             await message.reply(f"<b>• تـم فـك كـتـم {mention}</b>")
-    except: pass
+    except Exception as e:
+        print(e)
+        pass
 
-@app.on_message(filters.command("تحذيرات", "") & filters.group)
+@app.on_message(filters.command("تحذيرات", prefixes=CMD_PREFIXES) & filters.group & ~BANNED_USERS)
 async def set_warns_cmd(_, message: Message):
-    # الرد على العضو غير المشرف
     if not await has_permission(message.chat.id, message.from_user.id): 
         return await message.reply("↢ يا شـاطـر الامـر لـ ↢ 〔 الادمـن 〕 بـس .")
         
@@ -264,9 +242,8 @@ async def set_warns_cmd(_, message: Message):
 # [ 5 ] أوامر المسح والتدمير (Cleaning)
 # =========================================================
 
-@app.on_message(filters.command(["مسح", "تنظيف"], "") & filters.group)
+@app.on_message(filters.command(["مسح", "تنظيف"], prefixes=CMD_PREFIXES) & filters.group & ~BANNED_USERS)
 async def destructive_clear(_, message: Message):
-    # الرد على العضو غير المشرف
     if not await has_permission(message.chat.id, message.from_user.id): 
         return await message.reply("↢ يا شـاطـر الامـر لـ ↢ 〔 الادمـن 〕 بـس .")
         
@@ -282,13 +259,11 @@ async def destructive_clear(_, message: Message):
         except: num = 100  
         deleted = await force_delete(message.chat.id, message.id, num)
     
-    # رسالة المسح حسب الطلب
     temp = await message.reply(f"**•تـم مـسـح {deleted} •**")  
     await asyncio.sleep(3); await temp.delete()
 
-@app.on_message(filters.command("تدمير ذاتي", "") & filters.group)
+@app.on_message(filters.command("تدمير ذاتي", prefixes=CMD_PREFIXES) & filters.group & ~BANNED_USERS)
 async def self_destruct(_, message: Message):
-    # الرد على العضو غير المشرف
     if not await has_permission(message.chat.id, message.from_user.id): 
         return await message.reply("↢ يا شـاطـر الامـر لـ ↢ 〔 الادمـن 〕 بـس .")
         
@@ -299,40 +274,35 @@ async def self_destruct(_, message: Message):
 # [ 6 ] محرك الحماية الشامل (Full Protection Engine)
 # =========================================================
 
-@app.on_message(filters.group & ~filters.me, group=-1)
+@app.on_message(filters.group & ~filters.me & ~BANNED_USERS, group=-1)
 async def protector_engine(_, message: Message):
     c_id = message.chat.id
     user_id = message.from_user.id if message.from_user else 0
     
-    # 1. منع تكرار معالجة نفس الرسالة (فقط هنا للحماية)
     if c_id not in processed_cache: processed_cache[c_id] = []
     if message.id in processed_cache[c_id]: return 
     processed_cache[c_id].append(message.id)
     if len(processed_cache[c_id]) > 50: processed_cache[c_id].pop(0)
 
-    # 2. استثناء المشرفين
     if user_id and await has_permission(c_id, user_id): return
     
     locks = await get_locks(c_id)
     if not locks: return
 
-    # --- القفل العام (الشات) ---
     if "all" in locks:  
         try: await message.delete()  
         except: pass  
         return  
-    # --- التكرار (Flood) ---
     if "flood" in locks:
         now = time.time()
         key = f"{c_id}:{user_id}"
         hist = flood_cache.get(key, [])
-        hist = [t for t in hist if now - t < 5] # آخر 5 ثواني
+        hist = [t for t in hist if now - t < 5] 
         hist.append(now); flood_cache[key] = hist
         if len(hist) > 5:
             try: await message.delete(); flood_cache[key] = []; return await add_warn(message, reason="flood")
             except: pass
 
-    # --- الخدمة والبوتات ---
     if message.service:
         if "service" in locks: 
             try: await message.delete()
@@ -347,13 +317,11 @@ async def protector_engine(_, message: Message):
             except: pass
         return
 
-    # --- النصوص والميديا ---
     text = message.text or message.caption or ""
     should_delete = False; is_religious = False
     
-    # فحص النصوص
     if text:
-        if "porn_text" in locks: # فحص السب
+        if "porn_text" in locks: 
             clean = re.sub(r"[^\u0621-\u064A\s]", "", text)
             if any(fuzz.ratio(bad, word) > 85 for word in clean.split() for bad in BAD_WORDS):
                 should_delete = True; is_religious = True
@@ -365,7 +333,6 @@ async def protector_engine(_, message: Message):
         if not should_delete and "slashes" in locks and text.startswith("/"): should_delete = True
         if not should_delete and "long_msgs" in locks and len(text) > 800: should_delete = True
 
-    # فحص أنواع الميديا
     if not should_delete:
         if "photos" in locks and message.photo: should_delete = True
         elif "videos" in locks and message.video: should_delete = True
@@ -379,46 +346,33 @@ async def protector_engine(_, message: Message):
         elif "inline" in locks and message.via_bot: should_delete = True
         elif "forward" in locks and (message.forward_date or message.forward_from): should_delete = True
 
-    # تنفيذ الحذف العادي
     if should_delete:
         try: await message.delete()
         except: pass
         return await add_warn(message, reason="religious" if is_religious else "normal")
 
-    # --- فحص الإباحية المتقدم (API) ---
     if "porn_media" in locks:
         is_media = False
-        # التحقق من نوع الميديا وتحديد اسم آمن
         if message.photo:
             is_media = True
-            file_name = f"img_{message.chat.id}_{message.id}.jpg" # اسم آمن للصورة
+            file_name = f"img_{message.chat.id}_{message.id}.jpg" 
         elif message.video and message.video.file_size < 50*1024*1024:
             is_media = True
-            file_name = f"vid_{message.chat.id}_{message.id}.mp4" # اسم آمن للفيديو
+            file_name = f"vid_{message.chat.id}_{message.id}.mp4" 
 
         if is_media:
             try:
-                # 1. التحميل باسم آمن (لحل مشكلة الأسماء العربية)
                 path = await message.download(file_name=file_name)
-                
                 is_porn = False
-                
-                # 2. إذا كان فيديو، استخدم الفحص المتعدد (3 إطارات)
                 if message.video:
                     is_porn = await asyncio.get_event_loop().run_in_executor(None, scan_video_frames, path)
-                # 3. إذا كانت صورة، افحصها مباشرة
                 else:
                     is_porn = await asyncio.get_event_loop().run_in_executor(None, check_porn_api, path)
-                
-                # 4. تنظيف الملف بعد الفحص
                 if os.path.exists(path): os.remove(path)
-                
-                # 5. اتخاذ الإجراء
                 if is_porn:
                     try: await message.delete(); return await add_warn(message, reason="religious")
                     except: pass
             except: 
-                # تنظيف في حالة الخطأ
                 if 'path' in locals() and os.path.exists(path): os.remove(path)
                 pass
 
@@ -426,14 +380,19 @@ async def protector_engine(_, message: Message):
 # [ 7 ] أوامر القفل والفتح (Lock Commands)
 # =========================================================
 
-@app.on_message(filters.command(["قفل", "فتح"], "") & filters.group)
+# هنا يكمن الإصلاح الرئيسي: تفعيل البادئات المتعددة
+@app.on_message(filters.command(["قفل", "فتح"], prefixes=CMD_PREFIXES) & filters.group & ~BANNED_USERS)
 async def toggle_lock(_, message: Message):
-    # الرد على العضو غير المشرف
     if not await has_permission(message.chat.id, message.from_user.id): 
         return await message.reply("↢ يا شـاطـر الامـر لـ ↢ 〔 الادمـن 〕 بـس .")
-        
+    
+    # التأكد من وجود نص الأمر
     if len(message.command) < 2: return
-    cmd, input_text = message.command[0], message.text.split(None, 1)[1].strip()
+    
+    cmd = message.command[0]
+    # استخدام message.command[1] بدلاً من القص اليدوي للنص لضمان الدقة
+    input_text = message.command[1]
+    
     key = LOCK_MAP.get(input_text)
     if not key: return
     
@@ -444,18 +403,15 @@ async def toggle_lock(_, message: Message):
     else:
         user_link = message.from_user.mention
 
-    # جلب حالة الأقفال الحالية للتحقق
     current_locks = await get_locks(message.chat.id)
 
     if cmd == "قفل":
-        # إذا كان القفل مفعلاً بالفعل
         if key in current_locks:
              return await message.reply("**•الامـر مـفـعـل بـالـفـعل• 🧚**")
         
         await update_lock(message.chat.id, key, True)
         await message.reply(f"**• بواسطـة 「 {user_link} 」\n• تـم قـفـل {ex_text}\n ✓**", disable_web_page_preview=True)
-    else: # أمر فتح
-        # إذا كان الأمر مفتوحاً بالفعل (ليس في قائمة الأقفال)
+    else: 
         if key not in current_locks:
              return await message.reply("**•الامـر مـفـعـل بـالـفـعل• 🧚**")
 
@@ -479,9 +435,8 @@ async def get_kb(chat_id):
     kb.append([InlineKeyboardButton("إغلاق اللوحة", callback_data="close")])
     return InlineKeyboardMarkup(kb)
 
-@app.on_message(filters.command(["الاعدادات", "locks"], "") & filters.group)
+@app.on_message(filters.command(["الاعدادات", "locks"], prefixes=CMD_PREFIXES) & filters.group & ~BANNED_USERS)
 async def settings(_, message: Message):
-    # الرد على العضو غير المشرف
     if not await has_permission(message.chat.id, message.from_user.id): 
         return await message.reply("↢ يا شـاطـر الامـر لـ ↢ 〔 الادمـن 〕 بـس .")
         
@@ -493,7 +448,6 @@ async def settings(_, message: Message):
 
 @app.on_callback_query(filters.regex("^(trg_|u_|close|total_destruction)"))
 async def callback(_, cb: CallbackQuery):
-    # إظهار نوت (Popup) إذا لم يكن مشرفاً
     if not await has_permission(cb.message.chat.id, cb.from_user.id): 
         return await cb.answer("الامـر للادمـن بـس يـا حـلـو 🧚", show_alert=True)
         
@@ -501,22 +455,4 @@ async def callback(_, cb: CallbackQuery):
         try: return await cb.message.delete()
         except: pass
         
-    if cb.data == "total_destruction":  
-        await cb.answer("جـاري الـنـسـف...", show_alert=True)  
-        await cb.message.edit("<b>جـاري الـتـدمـيـر...</b>")  
-        deleted = await force_delete(cb.message.chat.id, cb.message.id, 500)  
-        await app.send_message(cb.message.chat.id, f"<b>تـم تـدمـيـر {deleted} رسـالـة</b>")  
-        await cb.message.delete()  
-    elif cb.data.startswith("trg_"):  
-        key = cb.data.replace("trg_", "")
-        locks = await get_locks(cb.message.chat.id)
-        if key in locks: await update_lock(cb.message.chat.id, key, False)
-        else: await update_lock(cb.message.chat.id, key, True)
-        try: await cb.message.edit_reply_markup(reply_markup=await get_kb(cb.message.chat.id))
-        except: pass
-    elif cb.data.startswith("u_unmute_"):  
-        u_id = int(cb.data.split("_")[2])  
-        try:
-            await app.restrict_chat_member(cb.message.chat.id, u_id, ChatPermissions(can_send_messages=True))  
-            await cb.message.edit(f"<b>• تـم فـك الـكـتـم</b>")
-        except: pass
+    if cb.data == "total_des
