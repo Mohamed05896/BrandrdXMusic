@@ -218,7 +218,10 @@ async def add_warn(message: Message, reason="normal"):
 
 @app.on_message(filters.command(["سماح", "شد سماح", "كتم", "شد ميوت", "فك الكتم"], "") & filters.group)
 async def admin_cmds_handler(_, message: Message):
-    if not await has_permission(message.chat.id, message.from_user.id): return
+    # الرد على العضو غير المشرف
+    if not await has_permission(message.chat.id, message.from_user.id): 
+        return await message.reply("↢ يا شـاطـر الامـر لـ ↢ 〔 الادمـن 〕 بـس .")
+        
     cmd = message.command[0]
     
     if message.reply_to_message:
@@ -246,7 +249,10 @@ async def admin_cmds_handler(_, message: Message):
 
 @app.on_message(filters.command("تحذيرات", "") & filters.group)
 async def set_warns_cmd(_, message: Message):
-    if not await has_permission(message.chat.id, message.from_user.id): return
+    # الرد على العضو غير المشرف
+    if not await has_permission(message.chat.id, message.from_user.id): 
+        return await message.reply("↢ يا شـاطـر الامـر لـ ↢ 〔 الادمـن 〕 بـس .")
+        
     if len(message.command) < 2: return
     try:
         num = int(message.command[1])
@@ -260,7 +266,10 @@ async def set_warns_cmd(_, message: Message):
 
 @app.on_message(filters.command(["مسح", "تنظيف"], "") & filters.group)
 async def destructive_clear(_, message: Message):
-    if not await has_permission(message.chat.id, message.from_user.id): return
+    # الرد على العضو غير المشرف
+    if not await has_permission(message.chat.id, message.from_user.id): 
+        return await message.reply("↢ يا شـاطـر الامـر لـ ↢ 〔 الادمـن 〕 بـس .")
+        
     if message.reply_to_message:  
         start_id = message.reply_to_message.id; end_id = message.id  
         msg_ids = list(range(start_id, end_id + 1))  
@@ -279,7 +288,10 @@ async def destructive_clear(_, message: Message):
 
 @app.on_message(filters.command("تدمير ذاتي", "") & filters.group)
 async def self_destruct(_, message: Message):
-    if not await has_permission(message.chat.id, message.from_user.id): return
+    # الرد على العضو غير المشرف
+    if not await has_permission(message.chat.id, message.from_user.id): 
+        return await message.reply("↢ يا شـاطـر الامـر لـ ↢ 〔 الادمـن 〕 بـس .")
+        
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("تـدمـيـر ذاتـي (500)", callback_data="total_destruction")]])
     await message.reply("<b>اضـغـط لـلـبـدء فـي تـدمـيـر آخـر 500 رسـالـة</b>", reply_markup=kb)
 
@@ -309,7 +321,6 @@ async def protector_engine(_, message: Message):
         try: await message.delete()  
         except: pass  
         return  
-
     # --- التكرار (Flood) ---
     if "flood" in locks:
         now = time.time()
@@ -417,7 +428,10 @@ async def protector_engine(_, message: Message):
 
 @app.on_message(filters.command(["قفل", "فتح"], "") & filters.group)
 async def toggle_lock(_, message: Message):
-    if not await has_permission(message.chat.id, message.from_user.id): return
+    # الرد على العضو غير المشرف
+    if not await has_permission(message.chat.id, message.from_user.id): 
+        return await message.reply("↢ يا شـاطـر الامـر لـ ↢ 〔 الادمـن 〕 بـس .")
+        
     if len(message.command) < 2: return
     cmd, input_text = message.command[0], message.text.split(None, 1)[1].strip()
     key = LOCK_MAP.get(input_text)
@@ -467,7 +481,10 @@ async def get_kb(chat_id):
 
 @app.on_message(filters.command(["الاعدادات", "locks"], "") & filters.group)
 async def settings(_, message: Message):
-    if not await has_permission(message.chat.id, message.from_user.id): return
+    # الرد على العضو غير المشرف
+    if not await has_permission(message.chat.id, message.from_user.id): 
+        return await message.reply("↢ يا شـاطـر الامـر لـ ↢ 〔 الادمـن 〕 بـس .")
+        
     await message.reply_text(f"<b>• إعدادات مجموعة : {message.chat.title}</b>", reply_markup=await get_kb(message.chat.id))
 
 # =========================================================
@@ -476,7 +493,10 @@ async def settings(_, message: Message):
 
 @app.on_callback_query(filters.regex("^(trg_|u_|close|total_destruction)"))
 async def callback(_, cb: CallbackQuery):
-    if not await has_permission(cb.message.chat.id, cb.from_user.id): return
+    # إظهار نوت (Popup) إذا لم يكن مشرفاً
+    if not await has_permission(cb.message.chat.id, cb.from_user.id): 
+        return await cb.answer("الامـر للادمـن بـس يـا حـلـو 🧚", show_alert=True)
+        
     if cb.data == "close": 
         try: return await cb.message.delete()
         except: pass
