@@ -12,6 +12,13 @@ from pyrogram.types import (
 from fuzzywuzzy import fuzz
 from motor.motor_asyncio import AsyncIOMotorClient
 
+# محاولة استيراد cv2 لفحص الفيديو من الداخل
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    CV2_AVAILABLE = False
+
 # --- استيراد كائن البوت وقائمة المطورين من ملفات السورس ---
 from BrandrdXMusic import app
 from BrandrdXMusic.misc import SUDOERS
@@ -50,6 +57,19 @@ LOCK_MAP = {
     "التوجيه": "forward", "الاغاني": "audio", "الصوت": "voice",
     "الجهات": "contacts", "الاشعارات": "service", "السب": "porn_text",
     "الاباحي": "porn_media"
+}
+
+# قائمة الأسماء المنسقة (لحل مشكلة النص الملتصق)
+PRETTY_MAP = {
+    "الروابط": "الـروابـط", "المعرفات": "الـمـعـرفـات", "التاك": "الـتـاك",
+    "الشارحه": "الـشـارحـة", "التثبيت": "الـتـثـبـيـت", "المتحركه": "الـمـتـحـركـة",
+    "الشات": "الـشـات", "الصور": "الـصـور", "الملصقات": "الـمـلـصـقـات",
+    "الملفات": "الـمـلـفـات", "البوتات": "الـبـوتـات", "التكرار": "الـتـكـرار",
+    "الكلايش": "الـكـلايـش", "الانلاين": "الإنـلايـن", "الفيديو": "الـفـيـديـو",
+    "البصمات": "الـبـصـمـات", "السيلفي": "الـسـيـلـفـي", "الماركدوان": "الـمـاركـداون",
+    "التوجيه": "الـتـوجـيـه", "الاغاني": "الأغـانـي", "الصوت": "الـصـوت",
+    "الجهات": "الـجـهـات", "الاشعارات": "الاشـعـارات", "السب": "الـسـب",
+    "الاباحي": "الإبـاحـي"
 }
 
 # قائمة الكلمات المحظورة
@@ -120,19 +140,29 @@ def check_porn_api(file_path):
     except: pass
     return False
 
-# --- دالة زخرفة (تمديد) النصوص ---
-def make_mamdood(text):
-    """
-    تحويل النص العادي إلى نص ممدود
-    مثال: الروابط -> الـروابـط
-    """
-    new_text = ""
-    for i, char in enumerate(text):
-        new_text += char
-        # إذا لم يكن الحرف مسافة، ولم يكن الحرف التالي مسافة، ولم نصل للنهاية
-        if char != " " and i < len(text) - 1 and text[i+1] != " ":
-            new_text += "ـ"
-    return new_text
+# دالة لاستخراج لقطة من منتصف الفيديو لفحصها
+def extract_frame_from_video(video_path):
+    if not CV2_AVAILABLE:
+        return video_path # لو مفيش مكتبة، يرجع الفيديو نفسه (Sightengine قد يفحصه أو يفشل)
+    
+    try:
+        cam = cv2.VideoCapture(video_path)
+        # حساب عدد الفريمات للوصول للمنتصف
+        total_frames = cam.get(cv2.CAP_PROP_FRAME_COUNT)
+        if total_frames > 0:
+            cam.set(cv2.CAP_PROP_POS_FRAMES, total_frames / 2)
+        
+        ret, frame = cam.read()
+        cam.release()
+        
+        if ret:
+            # حفظ اللقطة كصورة مؤقتة
+            frame_path = video_path + "_frame.jpg"
+            cv2.imwrite(frame_path, frame)
+            return frame_path
+    except:
+        pass
+    return video_path
 
 async def add_warn(message: Message, reason="normal"):
     c_id = message.chat.id
@@ -183,7 +213,6 @@ async def admin_cmds_handler(_, message: Message):
             user = await app.get_users(message.command[1]); user_id = user.id; mention = user.mention
         except: return
     
-    # الردود ممدودة بالكامل
     try:
         if cmd == "سماح":
             await app.promote_chat_member(message.chat.id, user_id, privileges=ChatPrivileges(can_manage_chat=True, can_delete_messages=True, can_restrict_members=True))
@@ -328,11 +357,22 @@ async def protector_engine(_, message: Message):
         return await add_warn(message, reason="religious" if is_religious else "normal")
 
     # فحص الإباحية المتقدم (API)
+    # الحد الأقصى 50 ميجا كما طلبت
     if "porn_media" in locks and (message.photo or (message.video and message.video.file_size < 50*1024*1024)):
         try:
             path = await message.download()
-            is_porn = await asyncio.get_event_loop().run_in_executor(None, check_porn_api, path)
-            os.remove(path)
+            check_path = path
+            
+            # إذا كان فيديو، نستخرج لقطة من الداخل
+            if message.video:
+                check_path = await asyncio.get_event_loop().run_in_executor(None, extract_frame_from_video, path)
+
+            is_porn = await asyncio.get_event_loop().run_in_executor(None, check_porn_api, check_path)
+            
+            # تنظيف الملفات
+            if os.path.exists(path): os.remove(path)
+            if check_path != path and os.path.exists(check_path): os.remove(check_path)
+            
             if is_porn:
                 try: await message.delete(); return await add_warn(message, reason="religious")
                 except: pass
@@ -350,15 +390,23 @@ async def toggle_lock(_, message: Message):
     key = LOCK_MAP.get(input_text)
     if not key: return
     
-    # نستخدم الدالة لتمديد النص الذي كتبه المستخدم
-    ex_text = make_mamdood(input_text)
+    # استخدام القائمة الجاهزة للحصول على نص منسق وجميل
+    ex_text = PRETTY_MAP.get(input_text, input_text)
     
+    # إنشاء رابط المستخدم (يوزرنيم إذا وجد، وإلا منشن عادي)
+    if message.from_user.username:
+        user_link = f"[{message.from_user.first_name}](https://t.me/{message.from_user.username})"
+    else:
+        user_link = message.from_user.mention
+
     if cmd == "قفل":
         await update_lock(message.chat.id, key, True)
-        await message.reply(f"<b>• تـم قـفـل ({ex_text})</b>")
+        # تم تعديل التنسيق هنا حسب طلبك
+        await message.reply(f"**• بواسطـة 「 {user_link} 」\n• تـم قـفـل {ex_text}\n ✓**", disable_web_page_preview=True)
     else:
         await update_lock(message.chat.id, key, False)
-        await message.reply(f"<b>• تـم فـتـح ({ex_text})</b>")
+        # تم تعديل التنسيق هنا حسب طلبك
+        await message.reply(f"**• بواسطـة 「 {user_link} 」\n• تـم فـتـح {ex_text}\n ✓**", disable_web_page_preview=True)
 
 async def get_kb(chat_id):
     kb = []
@@ -366,24 +414,20 @@ async def get_kb(chat_id):
     items = list(LOCK_MAP.items())
     for i in range(0, len(items), 2):
         row = []
-        # تم إزالة make_mamdood من هنا ليكون الكيبورد طبيعياً
         n1, k1 = items[i]; s1 = "مقفل" if k1 in active else "مفتوح"
         row.append(InlineKeyboardButton(f"• {n1} ← {s1} •", callback_data=f"trg_{k1}"))
         
         if i + 1 < len(items):
-            # تم إزالة make_mamdood من هنا ليكون الكيبورد طبيعياً
             n2, k2 = items[i+1]; s2 = "مقفل" if k2 in active else "مفتوح"
             row.append(InlineKeyboardButton(f"• {n2} ← {s2} •", callback_data=f"trg_{k2}"))
         kb.append(row)
     
-    # زر الإغلاق طبيعي
     kb.append([InlineKeyboardButton("إغلاق اللوحة", callback_data="close")])
     return InlineKeyboardMarkup(kb)
 
 @app.on_message(filters.command(["الاعدادات", "locks"], "") & filters.group)
 async def settings(_, message: Message):
     if not await has_permission(message.chat.id, message.from_user.id): return
-    # العنوان طبيعي بدون مد
     await message.reply_text(f"<b>• إعدادات مجموعة : {message.chat.title}</b>", reply_markup=await get_kb(message.chat.id))
 
 # =========================================================
@@ -416,4 +460,3 @@ async def callback(_, cb: CallbackQuery):
             await app.restrict_chat_member(cb.message.chat.id, u_id, ChatPermissions(can_send_messages=True))  
             await cb.message.edit(f"<b>• تـم فـك الـكـتـم</b>")
         except: pass
-    
