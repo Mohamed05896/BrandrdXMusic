@@ -214,7 +214,7 @@ scheduler.add_job(update_scheduler, "cron", hour=0, minute=5)
 scheduler.add_job(lambda: asyncio.create_task(send_duas_batch(MORNING_DUAS, "dua_active", "أذكار الصباح")), "cron", hour=7, minute=0)
 scheduler.add_job(lambda: asyncio.create_task(send_duas_batch(NIGHT_DUAS, "night_dua_active", "أذكار المساء")), "cron", hour=20, minute=0)
 if not scheduler.running: scheduler.start()
-asyncio.get_event_loop().create_task(update_scheduler())
+asyncio.get_event_loop().create_task(update_scheduler()))
 
 @app.on_message(filters.command("تفعيل الاذان", COMMAND_PREFIXES) & filters.group & ~BANNED_USERS, group=AZAN_GROUP)
 async def admin_enable_azan(_, m):
