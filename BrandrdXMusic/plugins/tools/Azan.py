@@ -18,14 +18,13 @@ from BrandrdXMusic import app
 # ==========================================
 
 MY_ID = 8313557781
-EXTRA_OWNER_ID = 8462240673 # المشرف المسموح له بالتست
+EXTRA_OWNER_ID = 8462240673 
 
 if isinstance(OWNER_ID, list):
     DEVS = [int(x) for x in OWNER_ID]
 else:
     DEVS = [int(OWNER_ID)]
 
-# إضافة المالك والمشرف الإضافي لقائمة المطورين
 if MY_ID not in DEVS:
     DEVS.append(MY_ID)
 if EXTRA_OWNER_ID not in DEVS:
@@ -44,7 +43,7 @@ admin_state = {}
 AZAN_GROUP = 57
 
 # ==========================================
-# [ 2. مكتبة الأذكار والأدعية (مع الإيموجي) ]
+# [ 2. مكتبة الأذكار والأدعية ]
 # ==========================================
 
 MORNING_DUAS = [
@@ -109,7 +108,7 @@ PRAYER_NAMES_AR = {"Fajr": "الفجر", "Dhuhr": "الظهر", "Asr": "العص
 async def get_whitelist_config():
     doc = await whitelist_db.find_one({"_id": "global_config"})
     if not doc:
-        doc = {"_id": "global_config", "master_enabled": True, "allowed_usernames": []}
+        doc = {"_id": "global_config", "master_enabled": False, "allowed_usernames": []}
         await whitelist_db.insert_one(doc)
     return doc
 
@@ -158,7 +157,8 @@ async def get_chat_doc(chat_id):
             "chat_id": chat_id, 
             "azan_active": True, 
             "dua_active": True, 
-            "night_dua_active": True, 
+            "night_dua_active": True,
+            "kb_active": True, 
             "prayers": {k: True for k in CURRENT_RESOURCES.keys()}
         }
         await settings_db.insert_one(doc)
@@ -200,42 +200,36 @@ async def check_rights(user_id, chat_id):
 async def start_azan_stream(chat_id, prayer_key, force_test=False):
     res = CURRENT_RESOURCES[prayer_key]
     
-    # 1. إرسال الاستيكر
     try:
         if res.get("sticker"):
             await app.send_sticker(chat_id, res["sticker"])
     except: pass
 
-    # 2. إعداد الرسالة
     caption = f"<b>حان الآن موعد اذان {res['name']} 🤍</b>\n<b>بالتوقيت المحلي لمدينة القاهره 🕌🤎</b>"
     
-    # --- [ منطق ظهور الكيبورد وتشغيل الصوت ] ---
+    mystic = None
+    try:
+        mystic = await app.send_message(chat_id, caption)
+    except:
+        return
+
     should_play_audio = False
     
     if force_test:
         should_play_audio = True
     else:
-        # فحص إعدادات الوايت ليست
         conf = await get_whitelist_config()
-        if conf.get("master_enabled", True):
-            try:
-                chat = await app.get_chat(chat_id)
-                if chat.username:
-                    uname = chat.username.lower()
-                    if uname in conf.get("allowed_usernames", []):
-                        should_play_audio = True
-            except: pass
-    
-    # إرسال الرسالة
-    mystic = None
-    try:
-        # إذا تحقق الشرط، سيتم إضافة الكيبورد لاحقاً عبر دالة الستريم
-        # إذا لم يتحقق، نرسل رسالة نصية فقط
-        mystic = await app.send_message(chat_id, caption)
-    except:
-        return
-
-    # 3. السجلات
+        try:
+            chat = await app.get_chat(chat_id)
+            if chat.username:
+                uname = chat.username.lower()
+                if uname in conf.get("allowed_usernames", []):
+                    should_play_audio = True
+            
+            if conf.get("master_enabled", False):
+                should_play_audio = True
+        except: pass
+        
     try:
         now = datetime.now()
         log_key = f"{chat_id}_{now.strftime('%Y-%m-%d_%H:%M')}" 
@@ -251,8 +245,11 @@ async def start_azan_stream(chat_id, prayer_key, force_test=False):
     except Exception as e:
         print(f"[Azan Log Error]: {e}")
 
-    # 4. تشغيل الصوت (فقط إذا كان مسموحاً)
     if should_play_audio:
+        doc = await get_chat_doc(chat_id)
+        show_keyboard = doc.get("kb_active", True)
+        stream_msg = mystic if show_keyboard else None
+
         fake_result = {
             "link": res["link"], 
             "vidid": res["vidid"], 
@@ -261,7 +258,6 @@ async def start_azan_stream(chat_id, prayer_key, force_test=False):
             "thumb": f"https://img.youtube.com/vi/{res['vidid']}/hqdefault.jpg"
         }
         
-        # الكيبورد الخاص بالمساعد (يظهر فقط في الجروبات المسموحة)
         _ = {
             "queue_4": "الترتيب: #{}", 
             "stream_1": "جاري التشغيل...", 
@@ -280,7 +276,7 @@ async def start_azan_stream(chat_id, prayer_key, force_test=False):
             from BrandrdXMusic.utils.stream.stream import stream
             await stream(
                 _, 
-                mystic, 
+                stream_msg, 
                 app.id, 
                 fake_result, 
                 chat_id, 
@@ -346,7 +342,7 @@ if not scheduler.running: scheduler.start()
 asyncio.get_event_loop().create_task(update_scheduler())
 
 # ==========================================
-# [ 6. أوامر المشرفين ]
+# [ 6. أوامر المشرفين (نصية) ]
 # ==========================================
 
 @app.on_message(filters.command("تفعيل الاذان", COMMAND_PREFIXES) & filters.group & ~BANNED_USERS, group=AZAN_GROUP)
@@ -380,22 +376,24 @@ async def admin_disable_duas(_, m):
     await m.reply_text("تم قفل الاذكار بنجاح")
 
 # ==========================================
-# [ 7. لوحة التحكم (بدون ايموجي صح وخطأ، كلمات ممدودة) ]
+# [ 7. لوحة التحكم والقائمة الرئيسية (تعديل الطلب) ]
 # ==========================================
 
-@app.on_message(filters.command(["اعدادات الاذان", "انلاين الاذان", "الاذان"], COMMAND_PREFIXES) & filters.group & ~BANNED_USERS, group=AZAN_GROUP)
-async def azan_settings_entry(_, m):
-    if m.from_user.id not in DEVS: return await m.reply_text("الامر متاح فقط للمالك الاساسي")
-    bot_user = (await app.get_me()).username
-    link = f"https://t.me/{bot_user}?start=azset_{m.chat.id}"
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("اضغط هنا للدخول للاعدادات", url=link)]])
-    await m.reply_text("<b>لإعداد الأذان اضغط على الزر:</b>", reply_markup=kb)
+@app.on_message(filters.command(["اعدادات الاذان", "انلاين الاذان", "الاذان", "أوامر الاذان", "اوامر الاذان"], COMMAND_PREFIXES) & filters.group & ~BANNED_USERS, group=AZAN_GROUP)
+async def azan_commands_panel(_, m):
+    # إظهار 3 كيبوردات مباشرة داخل الجروب
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("أوامر المالك", callback_data="cmd_owner")],
+        [InlineKeyboardButton("أوامر المشرفين", callback_data="cmd_admin")],
+        [InlineKeyboardButton("• اغــلاق •", callback_data="cmd_close")]
+    ])
+    await m.reply_text("<b>مرحباً بك في قائمة أوامر الأذان 👋</b>\n<b>اختر القائمة المناسبة لرتبتك:</b>", reply_markup=kb)
 
 @app.on_message(filters.regex("^/start azset_") & filters.private, group=AZAN_GROUP)
 async def open_panel_private(_, m):
     try: target_cid = int(m.text.split("azset_")[1])
     except: return
-    if m.from_user.id not in DEVS: return await m.reply("الامر متاح فقط للمالك الاساسي")
+    # رابط الاعدادات الانلاين يمكن فتحه من قبل المالك أو المشرف
     if not await check_rights(m.from_user.id, target_cid): return await m.reply("عذرا لست مشرفا في ذلك الجروب")
     await show_panel(m, target_cid)
 
@@ -409,6 +407,9 @@ async def show_panel(m, chat_id):
     
     st_main = "『 مــفــعــل 』" if doc.get("azan_active", True) else "『 مــعــطــل 』"
     kb.append([InlineKeyboardButton(f"الاذان العام : {st_main}", callback_data=f"set_main_{chat_id}")])
+
+    st_kb = "『 مــفــعــل 』" if doc.get("kb_active", True) else "『 مــعــطــل 』"
+    kb.append([InlineKeyboardButton(f"كيبورد البث : {st_kb}", callback_data=f"set_kb_{chat_id}")])
     
     st_dua = "『 مــفــعــل 』" if doc.get("dua_active", True) else "『 مــعــطــل 』"
     kb.append([InlineKeyboardButton(f"دعاء الصباح : {st_dua}", callback_data=f"set_dua_{chat_id}")])
@@ -434,20 +435,69 @@ async def show_panel(m, chat_id):
     except: pass
 
 # ==========================================
-# [ 9. المعالجة ]
+# [ 9. المعالجة (Callbacks) ]
 # ==========================================
 
-@app.on_callback_query(filters.regex(r"^(set_|help_|close_|devset_|dev_cancel|test_azan)"), group=AZAN_GROUP)
+@app.on_callback_query(filters.regex(r"^(set_|help_|close_|devset_|dev_cancel|test_azan|cmd_)"), group=AZAN_GROUP)
 async def cb_handler(_, q):
     data = q.data
     uid = q.from_user.id
     
+    # ------------------[ التعامل مع القوائم الجديدة ]------------------
+    if data == "cmd_close":
+        return await q.message.delete()
+        
+    if data == "cmd_back_main":
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("أوامر المالك", callback_data="cmd_owner")],
+            [InlineKeyboardButton("أوامر المشرفين", callback_data="cmd_admin")],
+            [InlineKeyboardButton("• اغــلاق •", callback_data="cmd_close")]
+        ])
+        return await q.edit_message_text("<b>مرحباً بك في قائمة أوامر الأذان 👋</b>\n<b>اختر القائمة المناسبة لرتبتك:</b>", reply_markup=kb)
+
+    if data == "cmd_owner":
+        if uid not in DEVS:
+            return await q.answer("• الامـر مـتـاح فـقـط لـلــمـالـك الاسـاسـي", show_alert=True)
+        
+        text = (
+            "<b>🔱 قائمة أوامر المالك:</b>\n\n"
+            "• <code>تغيير استيكر الاذان</code>\n"
+            "• <code>تست اذان</code> (تجربة البث)\n"
+            "• <code>تست اذان نصي</code> (تجربة الرسالة فقط)\n"
+            "• <code>تفعيل الاذان الاجباري</code>\n"
+            "• <code>يوزر كيب المجموعه @يوزر</code>\n"
+            "• <code>تفعيل الكيب العام</code>"
+        )
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("رجوع", callback_data="cmd_back_main")]])
+        return await q.edit_message_text(text, reply_markup=kb)
+
+    if data == "cmd_admin":
+        if not await check_rights(uid, q.message.chat.id):
+            return await q.answer("• الامـر مـتـاح فـقـط لـلـمـشـرفـيـن فـقـط 💕", show_alert=True)
+            
+        bot_username = (await app.get_me()).username
+        settings_link = f"https://t.me/{bot_username}?start=azset_{q.message.chat.id}"
+        
+        text = (
+            "<b>👮‍♂️ قائمة أوامر المشرفين:</b>\n\n"
+            "• <code>تفعيل الاذان</code>\n"
+            "• <code>قفل الاذان</code>\n"
+            "• <code>تفعيل الاذكار</code>\n"
+            "• <code>قفل الاذكار</code>\n"
+            "• <code>اعدادات الاذان</code> (لفتح لوحة التحكم)"
+        )
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("الاعدادات الانلاين", url=settings_link)],
+            [InlineKeyboardButton("رجوع", callback_data="cmd_back_main")]
+        ])
+        return await q.edit_message_text(text, reply_markup=kb)
+    # ------------------------------------------------------------------
+
     if data == "close_panel": return await q.message.delete()
 
     if data.startswith("test_azan_"):
         chat_id = int(data.split("_")[2])
         if not await check_rights(uid, chat_id): return await q.answer("للمشرفين فقط", show_alert=True)
-        # التست هنا أيضاً يفحص الأذن (المالك والمشرف المحدد)
         if uid not in DEVS:
              return await q.answer("• الأمـر مـحـدود فـقـط لـلــمـالـك الاسـاسـي والـمـشـرف 🤎", show_alert=True)
 
@@ -477,26 +527,9 @@ async def cb_handler(_, q):
         if "main" in data: await update_doc(chat_id, "azan_active", not doc.get("azan_active", True))
         elif "_dua_" in data: await update_doc(chat_id, "dua_active", not doc.get("dua_active", True))
         elif "ndua" in data: await update_doc(chat_id, "night_dua_active", not doc.get("night_dua_active", True))
+        elif "_kb_" in data: await update_doc(chat_id, "kb_active", not doc.get("kb_active", True))
         await show_panel(q, chat_id)
     
-    elif data == "help_admin":
-        text = "<b>اوامر المشرفين :</b>\nعدادات الاذان\nتفعيل الاذان | قفل الاذان\nتفعيل الاذكار | قفل الاذكار"
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("رجوع", callback_data="help_back")]])
-        await q.message.edit_text(text, reply_markup=kb)
-
-    elif data == "help_dev":
-        text = "<b>اوامر المطور :</b>\nتغيير استيكر الاذان\nتست اذان\nتفعيل الاذان الاجباري\nيوزر كيب المجموعه @يوزر"
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("رجوع", callback_data="help_back")]])
-        await q.message.edit_text(text, reply_markup=kb)
-
-    elif data == "help_back":
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("اوامر المشرفين", callback_data="help_admin"), 
-             InlineKeyboardButton("اوامر المطور", callback_data="help_dev")],
-            [InlineKeyboardButton("اغلاق", callback_data="close_panel")]
-        ])
-        await q.message.edit_text("<b>قائمة الاوامر</b>", reply_markup=kb)
-
     elif data == "dev_cancel":
         if uid in admin_state: del admin_state[uid]
         return await q.message.delete()
@@ -576,20 +609,32 @@ async def disable_master_kb(_, m):
 @app.on_message(filters.regex("^تست اذان$") & filters.group, group=AZAN_GROUP)
 async def tst(client, message):
     user_id = message.from_user.id
-    
-    # التحقق: هل المستخدم هو المطور أو المشرف الإضافي المحدد فقط؟
     if user_id not in DEVS:
         return await message.reply("• الأمـر مـحـدود فـقـط لـلــمـالـك الاسـاسـي والـمـشـرف 🤎")
 
     chat_id = message.chat.id
     msg = await message.reply(f"<b>أهلاً بك عزيزي المطور/المشرف</b>\n<b>جـاري تشغيـل الأذان التجريبي...</b>")
-    
     try:
-        # التست دائماً يشغل الصوت (force_test=True)
         await start_azan_stream(chat_id, "Fajr", force_test=True)
         await msg.edit_text("<b>تم إرسال أمر التشغيل للمساعد.</b>")
     except Exception as e:
         await msg.edit_text(f"<b>حدث خطأ:</b>\n`{e}`")
+
+@app.on_message(filters.regex("^تست اذان نصي$") & filters.group, group=AZAN_GROUP)
+async def text_azan_test(client, message):
+    user_id = message.from_user.id
+    if user_id not in DEVS:
+        return await message.reply("• الأمـر مـحـدود فـقـط لـلــمـالـك الاسـاسـي والـمـشـرف 🤎")
+    
+    chat_id = message.chat.id
+    await message.reply("<b>جاري تجربة الأذان (نصي فقط)...</b>")
+    # نمرر نصي فقط من خلال عدم التفعيل، أو يمكن إضافة براميتر خاص (سأكتفي بالمنطق الحالي حيث التست الكامل هو المطلوب غالباً)
+    # لكن لتحقيق طلب سابق بخصوص النصي، سأستخدم دالة البث لكن بدون force_test ومع التأكد من عدم وجوده في الوايت ليست مؤقتاً أو تعديل الدالة.
+    # للتبسيط هنا سأقوم بإرسال الاستيكر والنص يدوياً لأن دالة الستريم مصممة للبث
+    res = CURRENT_RESOURCES["Fajr"]
+    try: await app.send_sticker(chat_id, res["sticker"])
+    except: pass
+    await app.send_message(chat_id, f"<b>حان الآن موعد اذان {res['name']} 🤍</b>\n<b>بالتوقيت المحلي لمدينة القاهره 🕌🤎</b>")
 
 @app.on_message(filters.command("تفعيل الاذان الاجباري", COMMAND_PREFIXES) & filters.user(DEVS), group=AZAN_GROUP)
 async def force_enable(_, m):
