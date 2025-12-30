@@ -163,18 +163,19 @@ async def check_rights(user_id, chat_id):
     return False
 
 # ==========================================
-# [ 5. نظام التشغيل ودخول المساعد (Stream Logic) ]
+# [ 5. نظام التشغيل ودخول المساعد (المحدث) ]
 # ==========================================
 
 async def start_azan_stream(chat_id, prayer_key):
     """
-    الدالة الرئيسية لتشغيل الأذان
+    الدالة الرئيسية لتشغيل الأذان (النسخة المستقرة)
     """
     res = CURRENT_RESOURCES[prayer_key]
     
     # 1. إرسال الاستيكر
     try:
-        await app.send_sticker(chat_id, res["sticker"])
+        if res.get("sticker"):
+            await app.send_sticker(chat_id, res["sticker"])
     except: pass
 
     # 2. إرسال النص
@@ -185,7 +186,7 @@ async def start_azan_stream(chat_id, prayer_key):
     except:
         return
 
-    # 3. [كود المراقبة]
+    # 3. تسجيل السجل في قاعدة البيانات
     try:
         now = datetime.now()
         log_key = f"{chat_id}_{now.strftime('%Y-%m-%d_%H:%M')}" 
@@ -210,14 +211,14 @@ async def start_azan_stream(chat_id, prayer_key):
         "thumb": f"https://img.youtube.com/vi/{res['vidid']}/hqdefault.jpg"
     }
     
-    # تمت إزالة الايموجيات من هنا
+    # القواميس النصية (بدون ايموجي مزعج كما طلبت)
     _ = {
         "queue_4": "<b>الترتيب: #{}</b>", 
         "stream_1": "<b>جاري التشغيل...</b>", 
         "play_3": "<b>فشل.</b>"
     }
 
-    # 5. استدعاء دالة الستريم (داخل الدالة لمنع المشاكل)
+    # 5. تشغيل المساعد (الحل السحري: الاستدعاء داخل الدالة)
     try:
         from BrandrdXMusic.utils.stream.stream import stream
         
@@ -250,12 +251,15 @@ async def get_azan_times():
     except: return None
 
 async def broadcast_azan(prayer_key):
+    # استخدام قاعدة البيانات مع فحص الإعدادات لكل جروب
     async for entry in settings_db.find({"azan_active": True}):
         c_id = entry.get("chat_id")
         prayers = entry.get("prayers", {})
+        
+        # التأكد من أن الصلاة المحددة مفعلة لهذا الجروب
         if c_id and prayers.get(prayer_key, True):
             asyncio.create_task(start_azan_stream(c_id, prayer_key))
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(2) # فاصل زمني بسيط لتخفيف الحمل
 
 async def send_duas_batch(dua_list, setting_key, title):
     selected = random.sample(dua_list, min(4, len(dua_list)))
@@ -500,12 +504,23 @@ async def dev_input_wait(_, m):
             await m.reply(f"تـم تغييـر رابـط {PRAYER_NAMES_AR[pkey]}")
         del admin_state[uid]
 
-# أوامر المطور (DEVS) فقط
+# أوامر المطور (DEVS) و المشرفين (Test)
 
 @app.on_message(filters.command("تست اذان", COMMAND_PREFIXES) & filters.group, group=AZAN_GROUP)
 async def tst(client, message):
-    if message.from_user.id not in DEVS:
-        return await message.reply_text("عذراً، هذا الأمر مخصص للمطور الأساسي فقط.")
+    # التحقق: هل هو المطور أو مشرف؟
+    is_authorized = False
+    if message.from_user.id in DEVS:
+        is_authorized = True
+    else:
+        try:
+            member = await app.get_chat_member(message.chat.id, message.from_user.id)
+            if member.status in [enums.ChatMemberStatus.ADMINISTRATOR, enums.ChatMemberStatus.OWNER]:
+                is_authorized = True
+        except: pass
+    
+    if not is_authorized:
+        return await message.reply("<b>عذراً، هذا الأمر للمشرفين والمطورين فقط.</b>")
 
     msg = await message.reply("<b>جـاري تشغيـل تجربـة الأذان (ستريم)...</b>")
     await start_azan_stream(message.chat.id, "Fajr")
