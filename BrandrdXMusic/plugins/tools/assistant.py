@@ -8,27 +8,28 @@ from BrandrdXMusic import app
 from config import MONGO_DB_URI, OWNER_ID
 
 # ==================================================================================================
-# [ إعـدادات الـنـظـام الـذكي ]
-# الآيدي: 8462240673
+# [ إعـدادات الـنـظـام وقـواعـد الـبـيـانـات ]
 # ==================================================================================================
 
 mongo_client = AsyncIOMotorClient(MONGO_DB_URI)
+# نفس قاعدة البيانات المستخدمة في call.py و azan.py
 database = mongo_client.BrandrdX.admin_system_v3_db
 
-# الجداول
-assistant_logs = database.assistant_logs  # سجل الدخول
-azan_logs = database.azan_logs            # سجل الأذان
-ranks_collection = database.ranks         # الرتب
-settings_collection = database.settings   # إعدادات (مثل تفعيل/تعطيل المشرفين)
+# الجداول (Collections)
+assistant_logs = database.assistant_logs 
+azan_logs = database.azan_logs 
+ranks_collection = database.ranks 
+settings_collection = database.settings 
 
 ASSISTANT_ID = 8462240673
+CB_PREFIX = "uniq_ast_sys_" 
 
 # ==================================================================================================
-# [ أدوات الـمـسـاعـدة والـتـحـقـق ]
+# [ 1 ] أدوات الـتـحـقـق والـمساعـدة
 # ==================================================================================================
 
 async def get_rank(chat_id: int, user_id: int):
-    """التحقق من الرتبة"""
+    """التحقق من الرتبة داخل الجروب"""
     if user_id == OWNER_ID: return "مطور"
     doc = await ranks_collection.find_one({"chat_id": chat_id, "user_id": user_id})
     return doc.get("rank") if doc else None
@@ -38,108 +39,68 @@ async def is_admins_allowed(chat_id: int) -> bool:
     doc = await settings_collection.find_one({"chat_id": chat_id})
     if doc and "allow_assist_view" in doc:
         return doc["allow_assist_view"]
-    return False # الافتراضي: مغلق (للمالك فقط)
+    return False 
 
 async def get_main_keyboard(chat_id: int):
-    """دالة لإنشاء الكيبورد الرئيسي بحالته الحالية"""
     is_allowed = await is_admins_allowed(chat_id)
     toggle_text = "قفل المشرفين" if is_allowed else "فتح للمشرفين"
-    
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("احصائيات عامة", callback_data="ast_glob"),
-            InlineKeyboardButton("احصائيات الجروب", callback_data="ast_loc"),
+            InlineKeyboardButton("احصائيات عامة", callback_data=f"{CB_PREFIX}glob"),
+            InlineKeyboardButton("احصائيات الجروب", callback_data=f"{CB_PREFIX}loc")
         ],
         [
-            InlineKeyboardButton(toggle_text, callback_data="ast_perm"),
+            InlineKeyboardButton(toggle_text, callback_data=f"{CB_PREFIX}perm")
         ],
         [
-            InlineKeyboardButton("اغلاق", callback_data="ast_close"),
+            InlineKeyboardButton("اغلاق", callback_data=f"{CB_PREFIX}close")
         ]
     ])
 
-async def time_ago(milliseconds: int) -> str:
-    """تنسيق الوقت المنقضي"""
-    seconds = int(milliseconds / 1000)
-    minutes, seconds = divmod(seconds, 60)
-    hours, minutes = divmod(minutes, 60)
-    if hours > 0: return f"{hours} س و {minutes} د"
-    if minutes > 0: return f"{minutes} دقيقة"
-    return "الآن"
-
 # ==================================================================================================
-# [ 1 ] الـمـراقـبـات (Loggers) - أذان ودخول
+# [ 2 ] الأوامـر والـتـفـاعـل (الكيبورد)
 # ==================================================================================================
 
-@app.on_message(filters.regex(r"حان الآن موعد أذان") & filters.bot & filters.group, group=89)
-async def log_azan_broadcast(client, message):
-    try:
-        now = datetime.now()
-        await azan_logs.insert_one({
-            "chat_id": message.chat.id,
-            "chat_title": message.chat.title, 
-            "date": now.strftime("%Y-%m-%d"),
-            "time": now.strftime("%I:%M %p"),
-            "timestamp": time.time()
-        })
-    except: pass
-
-@app.on_message(filters.video_chat_members_invited & filters.group, group=88)
-async def log_assistant_invite(client, message):
-    try:
-        invited = message.video_chat_members_invited.users
-        is_assistant = any(user.id == ASSISTANT_ID for user in invited)
-        if is_assistant:
-            inviter = message.from_user
-            now = datetime.now()
-            await assistant_logs.insert_one({
-                "chat_id": message.chat.id,
-                "user_id": ASSISTANT_ID,
-                "inviter_name": inviter.first_name,
-                "date": now.strftime("%Y-%m-%d"),
-                "time": now.strftime("%I:%M %p"),
-                "timestamp": time.time()
-            })
-    except: pass
-
-# ==================================================================================================
-# [ 2 ] نـظـام الـكـيـبـورد (كيب المساعد)
-# ==================================================================================================
-
-@app.on_message(filters.command("كيب المساعد", "") & filters.group)
+@app.on_message(filters.command(["كيب المساعد", "لوحة المساعد"], "") & filters.group, group=777)
 async def assistant_keyboard_panel(client, message):
     chat_id = message.chat.id
     user_id = message.from_user.id
     
-    # 1. التحقق من الصلاحية
+    # التحقق من الصلاحية (مطور أو رتبة مسجلة)
     rank = await get_rank(chat_id, user_id)
     if not rank and user_id != OWNER_ID:
-        return await message.reply_text("🤎 ¦ هذا الأمر للمسؤولين فقط 🧚")
+        # يمكن السماح للمشرفين العاديين اذا تم تفعيل الخيار، لكن هنا نتحقق مبدئيا
+        if not await is_admins_allowed(chat_id):
+            return await message.reply_text("🤎 ¦ هذا الأمر للمسؤولين فقط 🧚")
 
-    # 2. جلب الكيبورد وعرضه
     keyboard = await get_main_keyboard(chat_id)
-    
     await message.reply_text(
         "🧚 ¦ **لـوحـة تـحـكـم الـمـسـاعـد والـأذان**\n"
         "🤎 ¦ أهـلا بـك عـزيـزي الـمـطـور/الـمـشـرف\n"
-        "💕 ¦ يـمـكـنـك الـتـحـكـم بـالـسـجـلات مـن هـنـا :",
+        "💕 ¦ يـمـكـنـك عـرض الـسـجـلات مـن هـنـا :",
         reply_markup=keyboard
     )
 
-@app.on_callback_query(filters.regex(r"^ast_"))
+@app.on_callback_query(filters.regex(f"^{CB_PREFIX}"))
 async def assistant_callback_handler(client, callback: CallbackQuery):
-    data = callback.data
+    action = callback.data.replace(CB_PREFIX, "")
     user_id = callback.from_user.id
     chat_id = callback.message.chat.id
     is_owner = (user_id == OWNER_ID)
     
-    # [ زر الإغلاق ]
-    if data == "ast_close":
+    rank = await get_rank(chat_id, user_id)
+    
+    # [ إغلاق ]
+    if action == "close":
+        if not is_owner and not rank:
+            return await callback.answer("للمشرفين فقط", show_alert=True)
         await callback.message.delete()
         return
 
-    # [ زر الرجوع للقائمة الرئيسية ]
-    if data == "ast_back":
+    # [ رجوع ]
+    if action == "back":
+        if not is_owner and not rank:
+             return await callback.answer("للمشرفين فقط", show_alert=True)
         keyboard = await get_main_keyboard(chat_id)
         await callback.message.edit_text(
             "🧚 ¦ **لـوحـة تـحـكـم الـمـسـاعـد والـأذان**\n"
@@ -149,38 +110,34 @@ async def assistant_callback_handler(client, callback: CallbackQuery):
         )
         return
 
-    # [ زر التحكم بالصلاحية ](تحديث فوري ومتصل)
-    if data == "ast_perm":
+    # [ الصلاحيات ]
+    if action == "perm":
         if not is_owner:
-            return await callback.answer("هذا الزر للمالك الاساسي فقط", show_alert=True)
+            return await callback.answer("هذا الزر للمالك الاساسي فقط 🚫", show_alert=True)
             
         current_state = await is_admins_allowed(chat_id)
         new_state = not current_state
         
-        # حفظ الإعداد الجديد
         await settings_collection.update_one(
             {"chat_id": chat_id},
             {"$set": {"allow_assist_view": new_state}},
             upsert=True
         )
         
-        # إعادة تحميل الكيبورد بالحالة الجديدة
         keyboard = await get_main_keyboard(chat_id)
-        state_text = "مسموح" if new_state else "مغلق"
+        state_text = "مسموح للمشرفين" if new_state else "مغلق (للمالك)"
         
-        # تعديل الرسالة لتبدو متصلة
         await callback.message.edit_text(
-            f"🧚 ¦ **تـم تـحـديـث الـصـلاحـيـات بـنـجـاح**\n"
-            f"🤎 ¦ حـالـة عـرض الـسـجـلات للمـشـرفـيـن الآن : **{state_text}** 💕\n"
-            f"👇 ¦ يـمـكـنـك الـمـتـابـعـة مـن الأسـفـل :",
+            f"🧚 ¦ **تـم تـحـديـث الـصـلاحـيـات**\n"
+            f"🤎 ¦ الـوضـع الـحـالـي : **{state_text}** 💕",
             reply_markup=keyboard
         )
         return
 
-    # [ زر الإحصائيات العامة ]
-    if data == "ast_glob":
+    # [ عام - للمطور فقط ]
+    if action == "glob":
         if not is_owner:
-            return await callback.answer("هذا التقرير للمطور فقط", show_alert=True)
+            return await callback.answer("هذا التقرير للمطور فقط 🔒", show_alert=True)
             
         groups_azan = len(await azan_logs.distinct("chat_id"))
         groups_join = len(await assistant_logs.distinct("chat_id"))
@@ -194,20 +151,22 @@ async def assistant_callback_handler(client, callback: CallbackQuery):
             f"🤍 ¦ إجـمـالـي مـرات الـأذان : {total_azan}\n"
             f"🧚 ¦ عـدد جـروبـات الـمـسـاعـد : {groups_join}\n"
             f"💕 ¦ إجـمـالـي مـرات الـدخـول : {total_join}\n\n"
-            "🤎 ¦ **مـلـحـوظـة :** هـذه الأرقـام إجـمـالـيـة لـكـل الـمـجـمـوعـات."
+            "🤎 ¦ **مـلـحـوظـة :** هـذه الأرقـام يتم تحديثها تلقائياً من السورس."
         )
-        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("رجوع", callback_data="ast_back")]]))
+        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("رجوع", callback_data=f"{CB_PREFIX}back")]]))
         return
 
-    # [ زر إحصائيات الجروب ]
-    if data == "ast_loc":
+    # [ محلي - للجروب الحالي ]
+    if action == "loc":
         admins_ok = await is_admins_allowed(chat_id)
-        if not is_owner and not admins_ok:
-            return await callback.answer("هذا التقرير محصور للمالك حالياً", show_alert=True)
+        if not is_owner:
+            if not admins_ok: return await callback.answer("مغلق من المالك 🔒", show_alert=True)
+            if not rank and not admins_ok: return await callback.answer("للمشرفين فقط 🚫", show_alert=True)
         
         local_azan = await azan_logs.count_documents({"chat_id": chat_id})
         local_joins = await assistant_logs.count_documents({"chat_id": chat_id})
         
+        # محاولة معرفة حالة المساعد الحالية
         state = "غير موجود"
         try:
             mem = await app.get_chat_member(chat_id, ASSISTANT_ID)
@@ -220,25 +179,25 @@ async def assistant_callback_handler(client, callback: CallbackQuery):
             "ـــــــــــــــــــــــــــــــــــــــــــــــــــــ\n\n"
             f"🧚 ¦ حـالـة الـمـسـاعـد : {state}\n"
             f"🤎 ¦ عـدد مـرات الـأذان : {local_azan}\n"
-            f"💕 ¦ عـدد مـرات الـدخـول : {local_joins}\n"
+            f"💕 ¦ عـدد مـرات دخـول الكـول : {local_joins}\n"
         )
-        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("رجوع", callback_data="ast_back")]]))
+        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("رجوع", callback_data=f"{CB_PREFIX}back")]]))
         return
 
 # ==================================================================================================
-# [ 3 ] الأوامـر الـنـصـيـة (للسرعة أو كبديل)
+# [ 3 ] الأوامـر الـنـصـيـة الإضـافـيـة
 # ==================================================================================================
 
-@app.on_message(filters.command("سجل الاذان", "") & filters.group)
+@app.on_message(filters.command("سجل الاذان", "") & filters.group, group=778)
 async def text_azan_report(client, message):
     try:
-        if not await get_rank(message.chat.id, message.from_user.id):
-             return await message.reply_text("للادارة فقط 🤎")
-        
+        rank = await get_rank(message.chat.id, message.from_user.id)
+        if not rank and message.from_user.id != OWNER_ID: return
+
         count = await azan_logs.count_documents({"chat_id": message.chat.id})
         if count == 0: return await message.reply_text("لم يعمل الأذان هنا من قبل 🤍")
         
-        msg = f"🧚 ¦ **سـجـل إقـامـة الـصـلاة**\nــــــــــــــــــــــــــــــــــــــــ\n"
+        msg = f"🧚 ¦ **آخـر 5 مـرات لـلأذان**\nــــــــــــــــــــــــــــــــــــــــ\n"
         cursor = azan_logs.find({"chat_id": message.chat.id}).sort("timestamp", -1).limit(5)
         async for doc in cursor:
             msg += f"🕌 ¦ {doc['date']} ({doc['time']})\n"
@@ -246,13 +205,32 @@ async def text_azan_report(client, message):
         await message.reply_text(msg)
     except: pass
 
-@app.on_message(filters.command("مسح سجل المساعد", "") & filters.group)
-async def text_clear_logs(client, message):
+@app.on_message(filters.command("سجل المساعد", "") & filters.group, group=779)
+async def text_assistant_report(client, message):
     try:
         rank = await get_rank(message.chat.id, message.from_user.id)
-        if rank not in ["مالك اساسي", "مالك", "منشئ اساسي", "منشئ", "مطور"]:
-             return await message.reply_text("هذا الأمر لكبار المسؤولين فقط 🧚")
+        if not rank and message.from_user.id != OWNER_ID: return
 
+        count = await assistant_logs.count_documents({"chat_id": message.chat.id})
+        if count == 0: return await message.reply_text("لم يدخل المساعد الكول هنا من قبل (أو لم يتم التسجيل) 🤍")
+        
+        msg = f"🧚 ¦ **آخـر 5 مـرات لـدخـول الـكـول**\nــــــــــــــــــــــــــــــــــــــــ\n"
+        cursor = assistant_logs.find({"chat_id": message.chat.id}).sort("timestamp", -1).limit(5)
+        async for doc in cursor:
+            msg += f"👤 ¦ {doc['date']} ({doc['time']})\n"
+        msg += f"\n🤎 ¦ الإجمالي : {count}"
+        await message.reply_text(msg)
+    except: pass
+
+@app.on_message(filters.command("مسح سجل المساعد", "") & filters.group, group=780)
+async def text_clear_logs(client, message):
+    try:
+        # الأمر حساس، نسمح به فقط للمالك أو المنشئ الأساسي
+        if message.from_user.id != OWNER_ID:
+             rank = await get_rank(message.chat.id, message.from_user.id)
+             if rank not in ["مالك اساسي", "منشئ اساسي"]:
+                 return await message.reply_text("هذا الأمر للمالك والمنشئ الأساسي فقط 🧚")
+                 
         r1 = await assistant_logs.delete_many({"chat_id": message.chat.id})
         r2 = await azan_logs.delete_many({"chat_id": message.chat.id})
         await message.reply_text(f"💕 ¦ تـم تـنـظـيـف {r1.deleted_count + r2.deleted_count} سـجـل.")
