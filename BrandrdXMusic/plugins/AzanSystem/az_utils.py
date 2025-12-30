@@ -9,14 +9,14 @@ from pyrogram import enums
 from BrandrdXMusic import app
 from BrandrdXMusic.utils.stream.stream import stream
 
-# استدعاء المتغيرات من ملف الكونفيج
-from .config import (
+# استدعاء المتغيرات من ملف az_conf
+from .az_conf import (
     settings_db, resources_db, azan_logs_db, local_cache, 
     CURRENT_RESOURCES, CURRENT_DUA_STICKER, DEVS, 
     MORNING_DUAS, NIGHT_DUAS
 )
 
-# --- [ دوال المساعدة والنظام ] ---
+# --- [ الدوال المساعدة ] ---
 
 async def load_resources():
     stored_res = await resources_db.find_one({"type": "azan_data"})
