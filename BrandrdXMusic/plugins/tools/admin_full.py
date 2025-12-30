@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from pyrogram import Client, filters, enums
 from pyrogram.types import (
     ChatPermissions, ChatPrivileges, Message, 
@@ -27,16 +28,38 @@ database = mongo_client.BrandrdX.admin_system_v3_db
 # الجداول
 ranks_collection = database.ranks              
 replies_collection = database.replies          
-stats_collection = database.stats  # جدول الإحصائيات الجديد
+stats_collection = database.stats  
+assistant_logs = database.assistant_logs 
 
-# ذاكرة مؤقتة لعملية إضافة الرد
 reply_state = {}
 
 # ==================================================================================================
-# [ 2 ] العدادات (حساب الرسائل والتعديلات)
+# [ 2 ] محاولة جلب آيدي المساعد تلقائياً
 # ==================================================================================================
 
-# دالة لحساب الرسائل
+ASSISTANT_ID = 0
+
+async def get_assistant_id():
+    global ASSISTANT_ID
+    if ASSISTANT_ID != 0: return ASSISTANT_ID
+    
+    try:
+        from BrandrdXMusic.core.userbot import Userbot
+        if hasattr(Userbot, 'one'):
+            me = await Userbot.one.get_me()
+            ASSISTANT_ID = me.id
+        elif hasattr(Userbot, 'clients') and Userbot.clients:
+            me = await Userbot.clients[0].get_me()
+            ASSISTANT_ID = me.id
+    except:
+        pass
+    
+    return ASSISTANT_ID
+
+# ==================================================================================================
+# [ 3 ] العدادات (حساب الرسائل والتعديلات)
+# ==================================================================================================
+
 @app.on_message(filters.group & ~filters.service & ~filters.bot, group=1)
 async def messages_counter(client, message):
     try:
@@ -47,7 +70,6 @@ async def messages_counter(client, message):
         )
     except: pass
 
-# دالة لحساب التعديلات
 @app.on_edited_message(filters.group & ~filters.service & ~filters.bot, group=1)
 async def edits_counter(client, message):
     try:
@@ -61,13 +83,12 @@ async def edits_counter(client, message):
 async def get_user_stats(chat_id, user_id):
     try:
         doc = await stats_collection.find_one({"chat_id": chat_id, "user_id": user_id})
-        if doc:
-            return doc.get("msgs", 0), doc.get("edits", 0)
+        if doc: return doc.get("msgs", 0), doc.get("edits", 0)
         return 0, 0
     except: return 0, 0
 
 # ==================================================================================================
-# [ 3 ] نـظـام الـصـلاحـيـات والـرتـب
+# [ 4 ] نـظـام الـصـلاحـيـات والـرتـب
 # ==================================================================================================
 
 RANK_POWER_LEVELS = {
@@ -117,7 +138,7 @@ async def get_target_member(message: Message):
     return None
 
 # ==================================================================================================
-# [ 4 ] أوامـر الـرفـع والـتـنـزيـل
+# [ 5 ] أوامـر الـرتـب والـمـسـح والـعـقـوبـات
 # ==================================================================================================
 
 RANK_COMMANDS_MAP = {
@@ -137,7 +158,6 @@ async def rank_logic(client: Client, message: Message):
         chat_id = message.chat.id
         user_id = message.from_user.id
         
-        # كشف الرتب
         if text == "كشف الرتب":
             if not await check_user_permission(chat_id, user_id, 50): return 
             msg = "<b>✨ كـشـف الـرتـب فـي الـمـجـمـوعـة 🧚 :</b>\n\n"
@@ -146,27 +166,25 @@ async def rank_logic(client: Client, message: Message):
             async for doc in cursor:
                 try:
                     u = await app.get_users(doc["user_id"])
-                    msg += f"♥️ ¦ {doc['rank']} ↢ {u.mention}\n"
+                    msg += f"💕 ¦ {doc['rank']} ↢ {u.mention}\n"
                     found = True
                 except: continue
-            if not found: msg += "🥀 ¦ لا يـوجـد أي رتـب مـضـافـة."
+            if not found: msg += "🧚 ¦ لا يـوجـد أي رتـب مـضـافـة."
             await message.reply_text(msg)
             return
 
-        # الرفع والتنزيل
         if text in RANK_COMMANDS_MAP:
             target_rank = RANK_COMMANDS_MAP[text]
             req_power = RANK_POWER_LEVELS.get(target_rank, 0) + 10
             
             if not await check_user_permission(chat_id, user_id, req_power):
-                return await message.reply_text("🤎 ¦ رتـبـتـك لا تـسـمـح بـذلـك.")
+                return await message.reply_text("🧚 ¦ رتـبـتـك لا تـسـمـح بـذلـك.")
             
             target = await get_target_member(message)
-            if not target: return await message.reply_text("🥀 ¦ بـالـرد او الـمـعـرف.")
+            if not target: return await message.reply_text("🧚 ¦ بـالـرد او الـمـعـرف.")
             
             await set_user_rank_in_db(chat_id, target.id, target_rank)
             
-            # محاولة ترقية العضو في تليجرام
             if text == "رفع مالك":
                 try:
                     await client.promote_chat_member(
@@ -182,12 +200,8 @@ async def rank_logic(client: Client, message: Message):
             
             verb = "تـنـزيـل" if target_rank == "عضو" else "رفـع"
             d_rank = target_rank if target_rank != "عضو" else "عضو"
-            await message.reply_text(f"🤍 ¦ تـم {verb} {target.mention} إلـى {d_rank}.")
+            await message.reply_text(f"💕 ¦ تـم {verb} {target.mention} إلـى {d_rank}.")
     except: pass
-
-# ==================================================================================================
-# [ 5 ] أوامـر الـمـسـح والـعـقـوبـات
-# ==================================================================================================
 
 @app.on_message(filters.regex(r"^مسح (.*)") & filters.group)
 async def wipe_logic(client: Client, message: Message):
@@ -195,23 +209,20 @@ async def wipe_logic(client: Client, message: Message):
         if not message.matches: return
         target = message.matches[0].group(1).strip()
         cid = message.chat.id
-        
         if target.isdigit(): return
         
         if not await check_user_permission(cid, message.from_user.id, 80):
-            return await message.reply_text("🤎 ¦ لـلـمـنـشـئـيـن الأسـاسـيـيـن.")
+            return await message.reply_text("🧚 ¦ لـلـمـنـشـئـيـن الأسـاسـيـيـن.")
         
         if target == "الردود":
              await replies_collection.delete_many({"chat_id": cid})
              return await message.reply_text("🧚 ¦ تـم حـذف الـردود.")
-        
         elif target == "المحظورين":
             c = 0
             async for m in message.chat.get_members(filter=enums.ChatMembersFilter.BANNED):
                 try: await message.chat.unban_member(m.user.id); c+=1
                 except: pass
-            return await message.reply_text(f"🤍 ¦ تـم مـسـح {c} مـن الـحـظـر.")
-
+            return await message.reply_text(f"💕 ¦ تـم مـسـح {c} مـن الـحـظـر.")
     except: pass
 
 @app.on_message(filters.command(["حظر", "طرد", "الغاء حظر"], "") & filters.group)
@@ -219,26 +230,26 @@ async def actions_logic(client: Client, message: Message):
     try:
         if not await check_user_permission(message.chat.id, message.from_user.id, 50): return
         target = await get_target_member(message)
-        if not target: return await message.reply_text("🥀 ¦ بـالـرد او الـمـعـرف.")
+        if not target: return await message.reply_text("🧚 ¦ بـالـرد او الـمـعـرف.")
         
         cmd = message.command[0]
         try:
             if cmd == "حظر":
                 await message.chat.ban_member(target.id)
-                await message.reply_text(f"🥀 ¦ تـم حـظـر {target.mention}.")
+                await message.reply_text(f"🧚 ¦ تـم حـظـر {target.mention}.")
             elif cmd == "الغاء حظر":
                 await message.chat.unban_member(target.id)
-                await message.reply_text(f"♥️ ¦ تـم الـغـاء الـحـظـر.")
+                await message.reply_text(f"💕 ¦ تـم الـغـاء الـحـظـر.")
             elif cmd == "طرد":
                 await message.chat.ban_member(target.id)
                 await message.chat.unban_member(target.id)
-                await message.reply_text(f"🥀 ¦ تـم طـرد {target.mention}.")
+                await message.reply_text(f"🧚 ¦ تـم طـرد {target.mention}.")
         except Exception:
             await message.reply_text("🚫 ¦ ليس لدي صلاحية على هذا العضو.")
     except: pass
 
 # ==================================================================================================
-# [ 6 ] نـظـام الـردود الـتـفـاعـلـي
+# [ 6 ] نـظـام الـردود الـشـامـل (نص، صورة، فيديو، استيكر، صوت)
 # ==================================================================================================
 
 @app.on_message(filters.command("اضف رد", "") & filters.group)
@@ -248,7 +259,7 @@ async def start_add_reply(client: Client, message: Message):
         user_id = message.from_user.id
 
         if not await check_user_permission(chat_id, user_id, 50):
-            return await message.reply_text("🤎 ¦ هـذا الأمـر لـلادارة فـقـط.")
+            return await message.reply_text("🧚 ¦ هـذا الأمـر لـلادارة فـقـط.")
 
         if user_id == OWNER_ID or user_id in SUDOERS:
             kb = InlineKeyboardMarkup([
@@ -270,10 +281,8 @@ async def start_add_reply(client: Client, message: Message):
                 "chat_id": chat_id, 
                 "origin_chat": chat_id
             }
-            await message.reply_text("**• حـلـو ، الـحـين ارسـل الـكلـمـة اللي تريـدهـا**")
-
-    except Exception as e:
-        print(e)
+            await message.reply_text("**✨ ¦ حـلـو ، الـحـين ارسـل الـكلـمـة اللي تريـدهـا**")
+    except Exception as e: print(e)
 
 @app.on_callback_query(filters.regex(r"^reply_(scope_global|scope_local|close)"))
 async def reply_scope_callback(client: Client, cb: CallbackQuery):
@@ -291,7 +300,6 @@ async def reply_scope_callback(client: Client, cb: CallbackQuery):
 
         save_chat_id = 0
         scope_text = "( عـام لـكـل الـجـروبـات )"
-
         if data == "reply_scope_local":
             save_chat_id = chat_id
             scope_text = "( لـهـذا الـجـروب فـقـط )"
@@ -301,10 +309,7 @@ async def reply_scope_callback(client: Client, cb: CallbackQuery):
             "chat_id": save_chat_id,
             "origin_chat": chat_id
         }
-
-        await cb.message.edit_text(
-            f"**• حـلـو ، الـحـين ارسـل الـكلـمـة اللي تريـدهـا**\n**{scope_text}**"
-        )
+        await cb.message.edit_text(f"**✨ ¦ حـلـو ، الـحـين ارسـل الـكلـمـة اللي تريـدهـا**\n**{scope_text}**")
     except: pass
 
 @app.on_message((filters.text | filters.media) & filters.group, group=50)
@@ -317,19 +322,15 @@ async def unified_reply_processor(client: Client, message: Message):
         state = reply_state[user_id]
         if state["origin_chat"] != chat_id: return
 
-        # المرحلة 1: استلام الكلمة
         if state["step"] == "wait_keyword":
-            if not message.text: 
-                return await message.reply_text("⚠️ يجب أن تكون الكلمة نصاً.")
-                
+            if not message.text: return await message.reply_text("🧚 ¦ يـجـب أن تـكـون الـكـلـمـة نـصـاً.")
             keyword = message.text.strip()
-            
             reply_state[user_id]["step"] = "wait_response"
             reply_state[user_id]["keyword"] = keyword
             
             text_menu = (
-                f"**• حـلـو , الـحـيـن ارسـل جـواب الـرد**\n"
-                f"**• ( نص,صوره,فيديو,متحركه,بصمه,اغنيه )**\n"
+                f"**✨ ¦ حـلـو , الـحـيـن ارسـل جـواب الـرد**\n"
+                f"**• ( نص,صوره,فيديو,متحركه,بصمه,اغنيه,ملف )**\n"
                 f"**ٴ⋆┄─┄─┄─┄┄─┄─┄─┄─┄┄⋆**\n"
                 f"**{{اليوزر}} ↬ يوزر المستخدم**\n"
                 f"**{{الرسائل}} ↬ عدد الرسائل**\n"
@@ -341,15 +342,14 @@ async def unified_reply_processor(client: Client, message: Message):
             await message.reply_text(text_menu)
             return
 
-        # المرحلة 2: استلام الجواب
         elif state["step"] == "wait_response":
             keyword = state["keyword"]
             save_chat_id = state["chat_id"]
-            
             reply_type = "text"
             file_id = None
             text_content = message.text or message.caption or ""
             
+            # التعرف على نوع الميديا
             if message.photo: reply_type = "photo"; file_id = message.photo.file_id
             elif message.sticker: reply_type = "sticker"; file_id = message.sticker.file_id
             elif message.video: reply_type = "video"; file_id = message.video.file_id
@@ -360,19 +360,12 @@ async def unified_reply_processor(client: Client, message: Message):
 
             await replies_collection.update_one(
                 {"chat_id": save_chat_id, "keyword": keyword},
-                {"$set": {
-                    "type": reply_type,
-                    "file_id": file_id,
-                    "text": text_content,
-                    "by": user_id
-                }},
+                {"$set": {"type": reply_type, "file_id": file_id, "text": text_content, "by": user_id}},
                 upsert=True
             )
-            
             del reply_state[user_id]
             scope_text = "عـام" if save_chat_id == 0 else "للمجمـوعـة"
-            await message.reply_text(f"**✨ ¦ تـم إضـافـة الـرد ({scope_text}) بـنـجـاح : {keyword}**")
-            
+            await message.reply_text(f"**🧚 ¦ تـم إضـافـة الـرد ({scope_text}) بـنـجـاح : {keyword}**")
     except: pass
 
 @app.on_message(filters.command("مسح رد", "") & filters.group)
@@ -380,27 +373,81 @@ async def delete_reply_handler(client: Client, message: Message):
     try:
         user_id = message.from_user.id
         chat_id = message.chat.id
-        
-        if not await check_user_permission(chat_id, user_id, 50):
-             return await message.reply_text("🤎 ¦ هـذا الأمـر لـلادارة فـقـط.")
-             
-        if len(message.command) < 2: return await message.reply_text("🥀 ¦ اكـتـب الـكـلـمـة لـمـسـحـهـا.")
+        if not await check_user_permission(chat_id, user_id, 50): return await message.reply_text("🧚 ¦ لـلادارة فـقـط.")
+        if len(message.command) < 2: return await message.reply_text("🧚 ¦ اكـتـب الـكـلـمـة.")
         keyword = message.text.split(None, 1)[1].strip()
 
         del_count = 0
         res1 = await replies_collection.delete_one({"chat_id": chat_id, "keyword": keyword})
         del_count += res1.deleted_count
-        
         if user_id == OWNER_ID or user_id in SUDOERS:
             res2 = await replies_collection.delete_one({"chat_id": 0, "keyword": keyword})
             del_count += res2.deleted_count
 
         if del_count > 0: await message.reply_text(f"🗑 ¦ تـم مـسـح الـرد : {keyword}")
-        else: await message.reply_text("🥀 ¦ الـرد غـيـر مـوجـود.")
+        else: await message.reply_text("🧚 ¦ الـرد غـيـر مـوجـود.")
     except: pass
 
 # ==================================================================================================
-# [ 7 ] مـحـرك الـردود (تشغيل الرد + الإحصائيات)
+# [ 7 ] سـجـل دخـول الـمـسـاعـد
+# ==================================================================================================
+
+@app.on_message(filters.video_chat_members_invited & filters.group, group=20)
+async def track_assistant_join(client, message):
+    try:
+        ass_id = await get_assistant_id()
+        if not ass_id: return 
+
+        invited_users = message.video_chat_members_invited.users
+        is_invited = False
+        for user in invited_users:
+            if user.id == ass_id:
+                is_invited = True
+                break
+        
+        if is_invited:
+            chat_id = message.chat.id
+            inviter = message.from_user
+            now = datetime.now()
+            
+            await assistant_logs.insert_one({
+                "chat_id": chat_id,
+                "user_id": ass_id,
+                "inviter_id": inviter.id,
+                "date": now.strftime("%Y-%m-%d"),
+                "time": now.strftime("%I:%M %p"),
+                "reason": f"دعوة للمكالمة بواسطة {inviter.first_name}",
+                "timestamp": now.timestamp()
+            })
+    except: pass
+
+@app.on_message(filters.command("دخل المساعد كام مره", "") & filters.group)
+async def check_assistant_logs(client, message):
+    try:
+        if not await check_user_permission(message.chat.id, message.from_user.id, 50):
+            return await message.reply_text("🧚 ¦ هـذا الأمـر لـلادارة فـقـط.")
+
+        count = await assistant_logs.count_documents({"chat_id": message.chat.id})
+        if count == 0:
+            return await message.reply_text("🤎 ¦ لـم يـدخـل الـمـسـاعـد الـمـكـالـمـة مـن قـبـل.")
+
+        cursor = assistant_logs.find({"chat_id": message.chat.id}).sort("timestamp", -1).limit(10)
+        
+        msg = f"<b>🧚 ¦ سـجـل دخـول الـمـسـاعـد للـمـكـالـمـة :</b>\n"
+        msg += f"<b>💕 ¦ إجـمـالـي الـمـرات : {count} مـرة</b>\n"
+        msg += "ـــــــــــــــــــــــــــــــــــــــــــــــــــــــ\n\n"
+        
+        i = 1
+        async for doc in cursor:
+            msg += f"<b>{i}) 📅 {doc['date']} | ⏰ {doc['time']}</b>\n"
+            msg += f"   └ <i>{doc['reason']}</i>\n\n"
+            i += 1
+            
+        await message.reply_text(msg)
+    except: await message.reply_text("حدث خطأ في جلب السجل.")
+
+# ==================================================================================================
+# [ 8 ] مـحـرك الـردود (Reply Engine)
 # ==================================================================================================
 
 @app.on_message(filters.text & filters.group, group=100)
@@ -424,7 +471,6 @@ async def reply_engine(client: Client, message: Message):
             final_text = raw_text
             if final_text:
                 rank_name = await get_user_rank_name(chat_id, user.id)
-                # جلب الإحصائيات الحقيقية
                 msgs, edits = await get_user_stats(chat_id, user.id)
                 
                 final_text = final_text.replace("{اليوزر}", f"@{user.username}" if user.username else "لا يوجد")
@@ -434,6 +480,7 @@ async def reply_engine(client: Client, message: Message):
                 final_text = final_text.replace("{الرسائل}", str(msgs)) 
                 final_text = final_text.replace("{التعديل}", str(edits)) 
 
+            # الإرسال بناءً على النوع
             if r_type == "text": await message.reply_text(final_text)
             elif r_type == "photo": await message.reply_photo(r_file, caption=final_text)
             elif r_type == "sticker": await message.reply_sticker(r_file)
