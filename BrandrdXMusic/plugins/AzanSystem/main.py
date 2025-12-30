@@ -4,13 +4,13 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, 
 from BrandrdXMusic import app
 from config import BANNED_USERS, COMMAND_PREFIXES
 
-# استدعاء المتغيرات والدوال من الملفات السابقة
-from .config import (
+# استدعاء المتغيرات والدوال من الملفات السابقة (بالأسماء الجديدة)
+from .az_conf import (
     MAIN_OWNER, DEVS, AZAN_GROUP, PRAYER_NAMES_AR, PRAYER_NAMES_REV, 
     local_cache, admin_state, resources_db, settings_db, 
     MORNING_DUAS, NIGHT_DUAS, CURRENT_RESOURCES, CURRENT_DUA_STICKER
 )
-from .utils import (
+from .az_utils import (
     check_rights, get_chat_doc, update_doc, start_azan_stream, 
     send_duas_batch, get_azan_times, extract_vidid, scheduler
 )
