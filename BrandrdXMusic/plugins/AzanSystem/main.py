@@ -433,4 +433,15 @@ async def force_disable_duas(_, m):
 async def stop_specific_azan(_, m):
     if m.from_user.id != MAIN_OWNER: return
     if len(m.command) < 2:
-        return await m
+        return await m.reply("الرجاء وضع يوزر الجروب أو رابطه مع الأمر\nمثال: `ايقاف الاذان @GroupUser`")
+    
+    target = m.text.split(maxsplit=1)[1]
+    
+    try:
+        chat = await app.get_chat(target)
+        chat_id = chat.id
+        await update_doc(chat_id, "azan_active", False)
+        await settings_db.update_one({"chat_id": chat_id}, {"$set": {"forced_active": False}})
+        await m.reply(f"تــم إيــقــاف الأذان بــنــجــاح فــي : {chat.title}")
+    except Exception as e:
+        await m.reply(f"حــدث خــطــأ، تــأكــد مــن الــيــوزر أو أن الــبــوت مــوجــود هــنــاك.\nالــخــطــأ : {e}")
