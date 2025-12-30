@@ -2,6 +2,8 @@ import asyncio
 import random
 import aiohttp
 import re
+import time
+from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pyrogram import filters, enums
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
@@ -34,12 +36,15 @@ db_client = AsyncIOMotorClient(MONGO_DB_URI)
 settings_db = db_client.BrandrdX.azan_final_pro_db
 resources_db = db_client.BrandrdX.azan_resources_final_db
 
+# [ إضافـة ] قاعدة بيانات سجلات الأذان (للمراقبة)
+azan_logs_db = db_client.BrandrdX.admin_system_v3_db.azan_logs
+
 local_cache = {}
 admin_state = {}
 AZAN_GROUP = 57
 
 # ==========================================
-# [ 2. مكتبة الأذكار والأدعية (كاملة بايموجي 🤎🤍) ]
+# [ 2. مكتبة الأذكار والأدعية (كاملة) ]
 # ==========================================
 
 MORNING_DUAS = [
@@ -120,15 +125,45 @@ async def get_chat_doc(chat_id):
     if chat_id in local_cache: return local_cache[chat_id]
     doc = await settings_db.find_one({"chat_id": chat_id})
     if not doc:
-        doc = {"chat_id": chat_id, "azan_active": True, "dua_active": True, "night_dua_active": True, "prayers": {k: True for k in CURRENT_RESOURCES.keys()}}
+        # التأكد من تهيئة قاموس الصلوات بشكل صحيح عند الانشاء
+        doc = {
+            "chat_id": chat_id, 
+            "azan_active": True, 
+            "dua_active": True, 
+            "night_dua_active": True, 
+            "prayers": {k: True for k in CURRENT_RESOURCES.keys()}
+        }
         await settings_db.insert_one(doc)
     local_cache[chat_id] = doc
     return doc
 
 async def update_doc(chat_id, key, value, sub_key=None):
-    if sub_key: await settings_db.update_one({"chat_id": chat_id}, {"$set": {f"prayers.{sub_key}": value}}, upsert=True)
-    else: await settings_db.update_one({"chat_id": chat_id}, {"$set": {key: value}}, upsert=True)
-    if chat_id in local_cache: del local_cache[chat_id]
+    """
+    دالة تحديث قاعدة البيانات والكاش.
+    تم اصلاحها لدعم المفاتيح الفرعية (sub_key) للصلوات.
+    """
+    if sub_key:
+        # تحديث قيمة فرعية داخل قاموس الصلوات في قاعدة البيانات
+        await settings_db.update_one(
+            {"chat_id": chat_id}, 
+            {"$set": {f"prayers.{sub_key}": value}}, 
+            upsert=True
+        )
+        # تحديث الكاش المحلي فوراً
+        if chat_id in local_cache:
+            if "prayers" not in local_cache[chat_id]:
+                local_cache[chat_id]["prayers"] = {}
+            local_cache[chat_id]["prayers"][sub_key] = value
+    else:
+        # تحديث قيمة عامة
+        await settings_db.update_one(
+            {"chat_id": chat_id}, 
+            {"$set": {key: value}}, 
+            upsert=True
+        )
+        # تحديث الكاش المحلي
+        if chat_id in local_cache: 
+            local_cache[chat_id][key] = value
 
 async def check_rights(user_id, chat_id):
     if user_id in DEVS: return True
@@ -159,6 +194,22 @@ async def start_azan_stream(chat_id, prayer_key):
     mystic = None
     try:
         mystic = await app.send_message(chat_id, caption)
+        
+        # [ كود المراقبة (Log System) ]
+        # يتم تسجيل الأذان هنا لحظة إرسال الرسالة
+        now = datetime.now()
+        log_key = f"{chat_id}_{now.strftime('%Y-%m-%d_%H:%M')}" 
+        
+        # التأكد من عدم التكرار
+        if not await azan_logs_db.find_one({"key": log_key}):
+            await azan_logs_db.insert_one({
+                "chat_id": chat_id,
+                "chat_title": "مجموعة (تلقائي)",
+                "date": now.strftime("%Y-%m-%d"),
+                "time": now.strftime("%I:%M %p"),
+                "timestamp": time.time(),
+                "key": log_key
+            })
     except: return
 
     # 3. إعداد بيانات الستريم
@@ -176,7 +227,7 @@ async def start_azan_stream(chat_id, prayer_key):
         "play_3": "<b>❌ فشل.</b>"
     }
 
-    # 4. استدعاء دالة الستريم (دخول المساعد)
+    # 4. استدعاء دالة الستريم
     try:
         await stream(
             _, 
@@ -204,9 +255,13 @@ async def get_azan_times():
     except: return None
 
 async def broadcast_azan(prayer_key):
+    # جلب كل المجموعات التي فعلت الأذان العام
     async for entry in settings_db.find({"azan_active": True}):
         c_id = entry.get("chat_id")
         prayers = entry.get("prayers", {})
+        
+        # التحقق: هل هذه الصلاة المحددة (prayer_key) مفعلة لهذه المجموعة؟
+        # الافتراضي True اذا لم يكن هناك اعداد سابق
         if c_id and prayers.get(prayer_key, True):
             asyncio.create_task(start_azan_stream(c_id, prayer_key))
             await asyncio.sleep(0.5)
@@ -295,8 +350,13 @@ async def open_panel_private(_, m):
     await show_panel(m, target_cid)
 
 async def show_panel(m, chat_id):
+    # تفريغ الكاش لضمان تحديث الأزرار
+    if chat_id in local_cache: del local_cache[chat_id]
+    
     doc = await get_chat_doc(chat_id)
     prayers = doc.get("prayers", {})
+    if not prayers: prayers = {k: True for k in CURRENT_RESOURCES.keys()}
+    
     kb = []
     
     st_main = "『 مـفعـل 』" if doc.get("azan_active", True) else "『 مـعطـل 』"
@@ -310,76 +370,22 @@ async def show_panel(m, chat_id):
 
     row = []
     for k, name in PRAYER_NAMES_AR.items():
-        pst = "『 مـفعـل 』" if prayers.get(k, True) else "『 مـعطـل 』"
+        # فحص حالة كل صلاة
+        is_active = prayers.get(k, True)
+        pst = "『 مـفعـل 』" if is_active else "『 مـعطـل 』"
+        
+        # الزر يحمل كود الصلاة الخاص
         row.append(InlineKeyboardButton(f"{name} ↢ {pst}", callback_data=f"set_p_{k}_{chat_id}"))
         if len(row) == 2: kb.append(row); row = []
     if row: kb.append(row)
     
     kb.append([InlineKeyboardButton("• الاغـلاق •", callback_data="close_panel")])
     text = f"<b>لوحـة تحكـم الأذان ( للجروب {chat_id} ) :</b>"
-    if isinstance(m, Message): await m.reply_text(text, reply_markup=InlineKeyboardMarkup(kb))
-    else: await m.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb))
-
-# ==========================================
-# [ 8. أوامر المطور وقائمة المساعدة ]
-# ==========================================
-
-@app.on_message(filters.command(["اوامر الاذان"], COMMAND_PREFIXES) & filters.user(DEVS), group=AZAN_GROUP)
-async def azan_menu_help(_, m):
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("اوامـر المشرفيـن", callback_data="help_admin"), 
-         InlineKeyboardButton("اوامـر المطـور", callback_data="help_dev")],
-        [InlineKeyboardButton("• الاغـلاق •", callback_data="close_panel")]
-    ])
-    await m.reply_text("<b>اهـلا بـك فـي قائمـة اوامـر الاذان</b>", reply_markup=kb)
-
-@app.on_message(filters.command(["تغيير استيكر الاذان", "تغيير رابط الاذان"], COMMAND_PREFIXES) & filters.user(DEVS), group=AZAN_GROUP)
-async def dev_select_prayer(_, m):
-    ctype = "sticker" if "استيكر" in m.text else "link"
-    kb = []
-    row = []
-    for k, n in PRAYER_NAMES_AR.items():
-        row.append(InlineKeyboardButton(n, callback_data=f"devset_{ctype}_{k}"))
-        if len(row) == 2: kb.append(row); row = []
-    if row: kb.append(row)
-    kb.append([InlineKeyboardButton("• الغـاء •", callback_data="dev_cancel")])
-    req_type = 'الاستيـكر' if ctype=='sticker' else 'الرابـط'
-    await m.reply(f"<b>اختـر الصـلاة التـي تريـد تغييـر {req_type} لهـا :</b>", reply_markup=InlineKeyboardMarkup(kb))
-
-@app.on_message(filters.command("تغيير استيكر الدعاء", COMMAND_PREFIXES) & filters.user(DEVS), group=AZAN_GROUP)
-async def dev_dua_st(_, m):
-    admin_state[m.from_user.id] = {"action": "wait_dua_sticker"}
-    await m.reply("<b>ارسـل الآن استيكـر الدعـاء الجديـد 🤍 :</b>")
-
-@app.on_message(filters.command("تفعيل الاذان الاجباري", COMMAND_PREFIXES) & filters.user(DEVS), group=AZAN_GROUP)
-async def force_enable(_, m):
-    msg = await m.reply("<b>جـاري التفعيـل والبـث...</b>")
-    c = 0
-    async for doc in settings_db.find({}):
-        chat_id = doc.get("chat_id")
-        await settings_db.update_one({"_id": doc["_id"]}, {"$set": {"azan_active": True, "dua_active": True, "night_dua_active": True}})
-        try:
-            await app.send_message(chat_id, "<b>تـم تـفـعـيـل بـث الاذان الاجـبـاري من قـبـل المطور 🤍</b>")
-        except: pass
-        c += 1
-    local_cache.clear()
-    await msg.edit_text(f"<b>تـم التفعيـل العـام فـي {c} مجموعـة 🤍</b>")
-
-@app.on_message(filters.command("قفل الاذان الاجباري", COMMAND_PREFIXES) & filters.user(DEVS), group=AZAN_GROUP)
-async def force_disable(_, m):
-    msg = await m.reply("<b>جـاري القفـل العـام...</b>")
-    c = 0
-    async for doc in settings_db.find({}):
-        await settings_db.update_one({"_id": doc["_id"]}, {"$set": {"azan_active": False}})
-        c += 1
-    local_cache.clear()
-    await msg.edit_text(f"<b>تـم قفـل الأذان فـي {c} مجموعـة</b>")
-
-@app.on_message(filters.command("تست اذان", COMMAND_PREFIXES) & filters.user(DEVS), group=AZAN_GROUP)
-async def tst(_, m):
-    msg = await m.reply("<b>جـاري تشغيـل تجربـة الأذان (ستريم)...</b>")
-    await start_azan_stream(m.chat.id, "Fajr")
-    await msg.delete()
+    
+    try:
+        if isinstance(m, Message): await m.reply_text(text, reply_markup=InlineKeyboardMarkup(kb))
+        else: await m.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb))
+    except: pass
 
 # ==========================================
 # [ 9. معالجة الكيبورد والردود ]
@@ -394,6 +400,27 @@ async def cb_handler(_, q):
 
     if data.startswith("set_"):
         parts = data.split("_")
+        
+        # [ 1 ] معالجة أزرار الصلوات الفردية (set_p_Fajr_ID)
+        if "_p_" in data:
+            try:
+                pkey = parts[2]       # اسم الصلاة (Fajr)
+                chat_id = int(parts[3]) # آيدي الجروب
+            except: return await q.answer("خطأ في البيانات", show_alert=True)
+
+            if not await check_rights(uid, chat_id): return await q.answer("للمشرفيـن فقـط", show_alert=True)
+            
+            doc = await get_chat_doc(chat_id)
+            prayers = doc.get("prayers", {})
+            current_status = prayers.get(pkey, True)
+            new_status = not current_status
+            
+            # تحديث القيمة في المكان الصحيح (sub_key)
+            await update_doc(chat_id, new_status, new_status, sub_key=pkey)
+            await show_panel(q, chat_id)
+            return
+
+        # [ 2 ] معالجة الأزرار العامة
         chat_id = int(parts[-1])
         if not await check_rights(uid, chat_id): return await q.answer("للمشرفيـن فقـط", show_alert=True)
         doc = await get_chat_doc(chat_id)
@@ -401,10 +428,7 @@ async def cb_handler(_, q):
         if "main" in data: await update_doc(chat_id, "azan_active", not doc.get("azan_active", True))
         elif "_dua_" in data: await update_doc(chat_id, "dua_active", not doc.get("dua_active", True))
         elif "ndua" in data: await update_doc(chat_id, "night_dua_active", not doc.get("night_dua_active", True))
-        elif "_p_" in data:
-            pkey = parts[2]
-            current = doc.get("prayers", {}).get(pkey, True)
-            await update_doc(chat_id, not current, sub_key=pkey)
+        
         await show_panel(q, chat_id)
     
     elif data == "help_admin":
