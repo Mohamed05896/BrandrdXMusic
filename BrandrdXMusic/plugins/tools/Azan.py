@@ -56,7 +56,7 @@ NIGHT_DUAS = [
     "اللهم إني أسألك العفو والعافية في الدنيا والآخرة 🤍",
     "اللهم استر عوراتي وآمن روعاتي، اللهم احفظني من بين يدي ومن خلفي 🤎",
     "اللهم عافني في بدني، اللهم عافني في سمعي، اللهم عافني في بصري 💕",
-    "اللهم إني أعوذ بك من الكفر والفقر، وأعوذ بك من عذاب القبر 🤍",
+    "الLهم إني أعوذ بك من الكفر والفقر، وأعوذ بك من عذاب القبر 🤍",
     "حسبي الله لا إله إلا هو عليه توكلت وهو رب العرش العظيم 🤎",
     "بسم الله الذي لا يضر مع اسمه شيء في الأرض ولا في السماء 💕",
     "يا حي يا قيوم برحمتك أستغيث، أصلح لي شأني كله ولا تكلني إلى نفسي طرفة عين 🤍",
@@ -214,7 +214,7 @@ scheduler.add_job(update_scheduler, "cron", hour=0, minute=5)
 scheduler.add_job(lambda: asyncio.create_task(send_duas_batch(MORNING_DUAS, "dua_active", "أذكار الصباح")), "cron", hour=7, minute=0)
 scheduler.add_job(lambda: asyncio.create_task(send_duas_batch(NIGHT_DUAS, "night_dua_active", "أذكار المساء")), "cron", hour=20, minute=0)
 if not scheduler.running: scheduler.start()
-asyncio.get_event_loop().create_task(update_scheduler()))
+asyncio.get_event_loop().create_task(update_scheduler())
 
 @app.on_message(filters.command("تفعيل الاذان", COMMAND_PREFIXES) & filters.group & ~BANNED_USERS, group=AZAN_GROUP)
 async def admin_enable_azan(_, m):
