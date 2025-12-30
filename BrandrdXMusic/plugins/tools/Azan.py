@@ -559,3 +559,36 @@ async def force_disable_duas(_, m):
         c += 1
     local_cache.clear()
     await msg.edit_text(f"<b>تـم قفل الأذكار فـي {c} مجموعـة</b>")
+# =========================================================
+# كـود الـفـحـص والـتـشـخـيـص (Debug)
+# =========================================================
+
+@app.on_message(filters.regex("^فحص الاذان$"), group=1)
+async def debug_azan_file(client, message):
+    # 1. إذا رد البوت فهذا يعني الملف شغال والمشكلة كانت في الاوامر او الايديهات
+    debug_text = "✅ | **ملف الأذان يعمل بنجاح!**\n\n"
+    
+    # 2. فحص هل أنت مطور أم لا
+    if message.from_user.id in DEVS:
+        debug_text += f"👤 | الحساب: **مطور** (ID: {message.from_user.id})\n"
+    else:
+        debug_text += f"👤 | الحساب: **غير مطور** (ID: {message.from_user.id})\n⚠️ تأكد من وضع الايدي في config\n"
+        
+    # 3. فحص دالة الستريم
+    try:
+        from BrandrdXMusic.utils.stream.stream import stream
+        debug_text += "📦 | استدعاء الستريم: **صحيح**\n"
+    except ImportError:
+        debug_text += "❌ | استدعاء الستريم: **خطأ! مسار (Import) غير صحيح لسورسك**\n"
+        
+    # 4. محاولة تشغيل تست سريع
+    debug_text += "\n⏳ جاري محاولة استدعاء الدالة..."
+    msg = await message.reply_text(debug_text)
+    
+    try:
+        # استدعاء الدالة الأصلية
+        await start_azan_stream(message.chat.id, "Fajr")
+        await msg.edit_text(debug_text + "\n✅ | **تم تنفيذ الأمر (تفقد المساعد).**")
+    except Exception as e:
+        await msg.edit_text(debug_text + f"\n❌ | **خطأ أثناء التشغيل:**\n`{e}`")
+        
