@@ -1,3 +1,4 @@
+from BrandrdXMusic.plugins.AzanSystem import main
 import glob
 from os.path import dirname, isfile
 
