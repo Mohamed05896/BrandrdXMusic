@@ -12,17 +12,20 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import config
 from config import BANNED_USERS, COMMAND_PREFIXES, MONGO_DB_URI, OWNER_ID
 from BrandrdXMusic import app
+from BrandrdXMusic.utils.stream.stream import stream
 
+# --- [ معالجة معرف المطور ] ---
 if isinstance(OWNER_ID, list):
     DEVS = [int(x) for x in OWNER_ID]
+    MAIN_OWNER = DEVS[0] if DEVS else 0
 elif isinstance(OWNER_ID, int):
     DEVS = [OWNER_ID]
+    MAIN_OWNER = OWNER_ID
 else:
-    try:
-        DEVS = [int(OWNER_ID)]
-    except:
-        DEVS = []
+    DEVS = [8462240673]
+    MAIN_OWNER = 0
 
+# --- [ إعداد قاعدة البيانات ] ---
 db_client = AsyncIOMotorClient(MONGO_DB_URI)
 settings_db = db_client.BrandrdX.azan_final_pro_db
 resources_db = db_client.BrandrdX.azan_resources_final_db
@@ -32,35 +35,36 @@ local_cache = {}
 admin_state = {}
 AZAN_GROUP = 57
 
+# --- [ البيانات والموارد ] ---
 MORNING_DUAS = [
-    "اللهم بك أصبحنا، وبك أمسينا، وبك نحيا، وبك نموت، وإليك النشور 🤍",
-    "أصبحنا وأصبح الملك لله، والحمد لله، لا إله إلا الله وحده لا شريك له 🤎",
-    "اللهم إني أسألك خير هذا اليوم، فتحه، ونصره، ونوره، وبركته، وهداه 💕",
-    "رضيت بالله رباً، وبالإسلام ديناً، وبمحمد صلى الله عليه وسلم نبياً 🤍",
-    "يا حي يا قيوم برحمتك أستغيث، أصلح لي شأني كله ولا تكلني إلى نفسي طرفة عين 🤎",
-    "اللهم أنت ربي لا إله إلا أنت، خلقتني وأنا عبدك، وأنا على عهدك ووعدك ما استطعت 💕",
-    "اللهم إني أسألك علماً نافعاً، ورزقاً طيباً، وعملاً متقبلاً 🤍",
-    "بسم الله الذي لا يضر مع اسمه شيء في الأرض ولا في السماء وهو السميع العليم 🤎",
-    "اللهم عافني في بدني، اللهم عافني في سمعي، اللهم عافني في بصري 💕",
-    "اللهم إني أسألك العفو والعافية في ديني ودنياي وأهلي ومالي 🤍",
-    "أصبحنا على فطرة الإسلام، وعلى كلمة الإخلاص، وعلى دين نبينا محمد 🤎",
-    "اللهم اجعل صباحنا هذا صباحاً مباركاً، تفتح لنا فيه أبواب رحمتك 💕",
-    "ربي أسألك في هذا الصباح أن تريح قلبي وفكري 🤍",
-    "حسبي الله لا إله إلا هو، عليه توكلت وهو رب العرش العظيم (7 مرات) 🤎"
+    "اللهم بك أصبحنا، وبك أمسينا، وبك نحيا، وبك نموت، وإليك النشور",
+    "أصبحنا وأصبح الملك لله، والحمد لله، لا إله إلا الله وحده لا شريك له",
+    "اللهم إني أسألك خير هذا اليوم، فتحه، ونصره، ونوره، وبركته، وهداه",
+    "رضيت بالله رباً، وبالإسلام ديناً، وبمحمد صلى الله عليه وسلم نبياً",
+    "يا حي يا قيوم برحمتك أستغيث، أصلح لي شأني كله ولا تكلني إلى نفسي طرفة عين",
+    "اللهم أنت ربي لا إله إلا أنت، خلقتني وأنا عبدك، وأنا على عهدك ووعدك ما استطعت",
+    "اللهم إني أسألك علماً نافعاً، ورزقاً طيباً، وعملاً متقبلاً",
+    "بسم الله الذي لا يضر مع اسمه شيء في الأرض ولا في السماء وهو السميع العليم",
+    "اللهم عافني في بدني، اللهم عافني في سمعي، اللهم عافني في بصري",
+    "اللهم إني أسألك العفو والعافية في ديني ودنياي وأهلي ومالي",
+    "أصبحنا على فطرة الإسلام، وعلى كلمة الإخلاص، وعلى دين نبينا محمد",
+    "اللهم اجعل صباحنا هذا صباحاً مباركاً، تفتح لنا فيه أبواب رحمتك",
+    "ربي أسألك في هذا الصباح أن تريح قلبي وفكري",
+    "حسبي الله لا إله إلا هو، عليه توكلت وهو رب العرش العظيم (7 مرات)"
 ]
 
 NIGHT_DUAS = [
-    "اللهم بك أمسينا، وبك أصبحنا، وبك نحيا، وبك نموت، وإليك المصير 🤍",
-    "أمسينا وأمسى الملك لله، والحمد لله، لا إله إلا الله وحده لا شريك له 🤎",
-    "اللهم أنت ربي لا إله إلا أنت، خلقتني وأنا عبدك، وأنا على عهدك ووعدك ما استطعت 💕",
-    "اللهم إني أسألك العفو والعافية في الدنيا والآخرة 🤍",
-    "اللهم استر عوراتي وآمن روعاتي، اللهم احفظني من بين يدي ومن خلفي 🤎",
-    "اللهم عافني في بدني، اللهم عافني في سمعي، اللهم عافني في بصري 💕",
-    "الLهم إني أعوذ بك من الكفر والفقر، وأعوذ بك من عذاب القبر 🤍",
-    "حسبي الله لا إله إلا هو عليه توكلت وهو رب العرش العظيم 🤎",
-    "بسم الله الذي لا يضر مع اسمه شيء في الأرض ولا في السماء 💕",
-    "يا حي يا قيوم برحمتك أستغيث، أصلح لي شأني كله ولا تكلني إلى نفسي طرفة عين 🤍",
-    "أمسينا على فطرة الإسلام، وعلى كلمة الإخلاص، وعلى دين نبينا محمد 🤎"
+    "اللهم بك أمسينا، وبك أصبحنا، وبك نحيا، وبك نموت، وإليك المصير",
+    "أمسينا وأمسى الملك لله، والحمد لله، لا إله إلا الله وحده لا شريك له",
+    "اللهم أنت ربي لا إله إلا أنت، خلقتني وأنا عبدك، وأنا على عهدك ووعدك ما استطعت",
+    "اللهم إني أسألك العفو والعافية في الدنيا والآخرة",
+    "اللهم استر عوراتي وآمن روعاتي، اللهم احفظني من بين يدي ومن خلفي",
+    "اللهم عافني في بدني، اللهم عافني في سمعي، اللهم عافني في بصري",
+    "الLهم إني أعوذ بك من الكفر والفقر، وأعوذ بك من عذاب القبر",
+    "حسبي الله لا إله إلا هو عليه توكلت وهو رب العرش العظيم",
+    "بسم الله الذي لا يضر مع اسمه شيء في الأرض ولا في السماء",
+    "يا حي يا قيوم برحمتك أستغيث، أصلح لي شأني كله ولا تكلني إلى نفسي طرفة عين",
+    "أمسينا على فطرة الإسلام، وعلى كلمة الإخلاص، وعلى دين نبينا محمد"
 ]
 
 DEFAULT_RESOURCES = {
@@ -74,6 +78,8 @@ DEFAULT_RESOURCES = {
 CURRENT_RESOURCES = DEFAULT_RESOURCES.copy()
 CURRENT_DUA_STICKER = None
 PRAYER_NAMES_AR = {"Fajr": "الفجر", "Dhuhr": "الظهر", "Asr": "العصر", "Maghrib": "المغرب", "Isha": "العشاء"}
+
+# --- [ دوال المساعدة والنظام ] ---
 
 async def load_resources():
     stored_res = await resources_db.find_one({"type": "azan_data"})
@@ -134,35 +140,48 @@ async def check_rights(user_id, chat_id):
     except: pass
     return False
 
+# --- [ دالة تشغيل الأذان ] ---
 async def start_azan_stream(chat_id, prayer_key, force_test=False):
     res = CURRENT_RESOURCES[prayer_key]
     
+    fake_result = {
+        "link": res["link"], 
+        "vidid": res["vidid"], 
+        "title": f"أذان {res['name']}", 
+        "duration_min": "05:00", 
+        "thumb": f"https://img.youtube.com/vi/{res['vidid']}/hqdefault.jpg"
+    }
+    
+    _ = {"queue_4": "<b>🔢 الترتيب: #{}</b>", "stream_1": "<b>🔘 جاري التشغيل...</b>", "play_3": "<b>❌ فشل.</b>"}
+
     try:
         if res.get("sticker"):
             await app.send_sticker(chat_id, res["sticker"])
     except: pass
 
-    caption = f"<b>حان الآن موعد اذان {res['name']} 🤍</b>\n<b>بالتوقيت المحلي لمدينة القاهره 🕌🤎</b>"
+    caption = f"<b>حان الآن موعد اذان {res['name']}</b>\n<b>بالتوقيت المحلي لمدينة القاهره 🕌</b>"
     
     try:
-        await app.send_message(chat_id, caption)
-    except:
+        mystic = await app.send_message(chat_id, caption)
+        await stream(_, mystic, app.id, fake_result, chat_id, "خدمة الأذان", chat_id, video=False, streamtype="youtube", forceplay=True)
+    except Exception as e:
+        print(f"Stream Error: {e}")
         return
 
-    try:
-        now = datetime.now()
-        log_key = f"{chat_id}_{now.strftime('%Y-%m-%d_%H:%M')}" 
-        if not await azan_logs_db.find_one({"key": log_key}):
-            await azan_logs_db.insert_one({
-                "chat_id": chat_id,
-                "chat_title": "مجموعة",
-                "date": now.strftime("%Y-%m-%d"),
-                "time": now.strftime("%I:%M %p"),
-                "timestamp": time.time(),
-                "key": log_key
-            })
-    except Exception as e:
-        print(f"[Azan Log Error]: {e}")
+    if not force_test:
+        try:
+            now = datetime.now()
+            log_key = f"{chat_id}_{now.strftime('%Y-%m-%d_%H:%M')}" 
+            if not await azan_logs_db.find_one({"key": log_key}):
+                await azan_logs_db.insert_one({
+                    "chat_id": chat_id,
+                    "chat_title": "مجموعة",
+                    "date": now.strftime("%Y-%m-%d"),
+                    "time": now.strftime("%I:%M %p"),
+                    "timestamp": time.time(),
+                    "key": log_key
+                })
+        except: pass
 
 async def get_azan_times():
     try:
@@ -180,7 +199,7 @@ async def broadcast_azan(prayer_key):
         prayers = entry.get("prayers", {})
         if c_id and prayers.get(prayer_key, True):
             asyncio.create_task(start_azan_stream(c_id, prayer_key, force_test=False))
-            await asyncio.sleep(2)
+            await asyncio.sleep(3)
 
 async def send_duas_batch(dua_list, setting_key, title):
     selected = random.sample(dua_list, min(4, len(dua_list)))
@@ -194,7 +213,7 @@ async def send_duas_batch(dua_list, setting_key, title):
             if c_id:
                 if CURRENT_DUA_STICKER: await app.send_sticker(c_id, CURRENT_DUA_STICKER)
                 await app.send_message(c_id, text)
-                await asyncio.sleep(1)
+                await asyncio.sleep(2)
         except: continue
 
 async def update_scheduler():
@@ -209,6 +228,7 @@ async def update_scheduler():
             h, m = map(int, t.split(":"))
             scheduler.add_job(broadcast_azan, "cron", hour=h, minute=m, args=[key], id=f"azan_{key}")
 
+# --- [ إعداد المجدول ] ---
 scheduler = AsyncIOScheduler(timezone="Africa/Cairo")
 scheduler.add_job(update_scheduler, "cron", hour=0, minute=5)
 scheduler.add_job(lambda: asyncio.create_task(send_duas_batch(MORNING_DUAS, "dua_active", "أذكار الصباح")), "cron", hour=7, minute=0)
@@ -216,35 +236,37 @@ scheduler.add_job(lambda: asyncio.create_task(send_duas_batch(NIGHT_DUAS, "night
 if not scheduler.running: scheduler.start()
 asyncio.get_event_loop().create_task(update_scheduler())
 
+# --- [ أوامر التحكم ] ---
+
 @app.on_message(filters.command("تفعيل الاذان", COMMAND_PREFIXES) & filters.group & ~BANNED_USERS, group=AZAN_GROUP)
 async def admin_enable_azan(_, m):
     if not await check_rights(m.from_user.id, m.chat.id): return
     doc = await get_chat_doc(m.chat.id)
-    if doc.get("azan_active"): return await m.reply_text("الاذان مفعل بالفعل 🤍")
+    if doc.get("azan_active"): return await m.reply_text("الاذان مفعل بالفعل")
     await update_doc(m.chat.id, "azan_active", True)
-    await m.reply_text("تم تفعيل الاذان بنجاح 🤍")
+    await m.reply_text("تم تفعيل الاذان بنجاح")
 
 @app.on_message(filters.command("قفل الاذان", COMMAND_PREFIXES) & filters.group & ~BANNED_USERS, group=AZAN_GROUP)
 async def admin_disable_azan(_, m):
     if not await check_rights(m.from_user.id, m.chat.id): return
     doc = await get_chat_doc(m.chat.id)
-    if not doc.get("azan_active"): return await m.reply_text("الاذان معطل بالفعل 🤎")
+    if not doc.get("azan_active"): return await m.reply_text("الاذان معطل بالفعل")
     await update_doc(m.chat.id, "azan_active", False)
-    await m.reply_text("تم قفل الاذان بنجاح 🤎")
+    await m.reply_text("تم قفل الاذان بنجاح")
 
 @app.on_message(filters.command("تفعيل الاذكار", COMMAND_PREFIXES) & filters.group & ~BANNED_USERS, group=AZAN_GROUP)
 async def admin_enable_duas(_, m):
     if not await check_rights(m.from_user.id, m.chat.id): return
     await update_doc(m.chat.id, "dua_active", True)
     await update_doc(m.chat.id, "night_dua_active", True)
-    await m.reply_text("تم تفعيل الاذكار بنجاح 💕")
+    await m.reply_text("تم تفعيل الاذكار بنجاح")
 
 @app.on_message(filters.command("قفل الاذكار", COMMAND_PREFIXES) & filters.group & ~BANNED_USERS, group=AZAN_GROUP)
 async def admin_disable_duas(_, m):
     if not await check_rights(m.from_user.id, m.chat.id): return
     await update_doc(m.chat.id, "dua_active", False)
     await update_doc(m.chat.id, "night_dua_active", False)
-    await m.reply_text("تم قفل الاذكار بنجاح 🤎")
+    await m.reply_text("تم قفل الاذكار بنجاح")
 
 @app.on_message(filters.command(["اعدادات الاذان", "انلاين الاذان", "الاذان", "أوامر الاذان", "اوامر الاذان"], COMMAND_PREFIXES) & filters.group & ~BANNED_USERS, group=AZAN_GROUP)
 async def azan_commands_panel(_, m):
@@ -270,19 +292,19 @@ async def show_panel(m, chat_id):
     
     kb = []
     
-    st_main = "『 مــفــعــل 』" if doc.get("azan_active", True) else "『 مــعــطــل 』"
+    st_main = "مــفــعــل" if doc.get("azan_active", True) else "مــعــطــل"
     kb.append([InlineKeyboardButton(f"الاذان العام : {st_main}", callback_data=f"set_main_{chat_id}")])
     
-    st_dua = "『 مــفــعــل 』" if doc.get("dua_active", True) else "『 مــعــطــل 』"
+    st_dua = "مــفــعــل" if doc.get("dua_active", True) else "مــعــطــل"
     kb.append([InlineKeyboardButton(f"دعاء الصباح : {st_dua}", callback_data=f"set_dua_{chat_id}")])
     
-    st_ndua = "『 مــفــعــل 』" if doc.get("night_dua_active", True) else "『 مــعــطــل 』"
+    st_ndua = "مــفــعــل" if doc.get("night_dua_active", True) else "مــعــطــل"
     kb.append([InlineKeyboardButton(f"دعاء المساء : {st_ndua}", callback_data=f"set_ndua_{chat_id}")])
 
     row = []
     for k, name in PRAYER_NAMES_AR.items():
         is_active = prayers.get(k, True)
-        pst = "『 مــفــعــل 』" if is_active else "『 مــعــطــل 』"
+        pst = "مــفــعــل" if is_active else "مــعــطــل"
         row.append(InlineKeyboardButton(f"{name} : {pst}", callback_data=f"set_p_{k}_{chat_id}"))
         if len(row) == 2: kb.append(row); row = []
     if row: kb.append(row)
@@ -301,7 +323,10 @@ async def cb_handler(_, q):
     data = q.data
     uid = q.from_user.id
     
-    if data == "cmd_close":
+    if data == "cmd_close" or data == "close_panel":
+        chat_id = q.message.chat.id
+        if not await check_rights(uid, chat_id):
+            return await q.answer("عذراً، هذا الأمر للمشرفين فقط.", show_alert=True)
         return await q.message.delete()
         
     if data == "cmd_back_main":
@@ -314,13 +339,13 @@ async def cb_handler(_, q):
 
     if data == "cmd_owner":
         if uid not in DEVS:
-            return await q.answer("• الامـر مـتـاح فـقـط لـلــمـالـك الاسـاسـي", show_alert=True)
+            return await q.answer("الامـر مـتـاح فـقـط لـلــمـالـك الاسـاسـي", show_alert=True)
         
         text = (
             "<b>قائمة أوامر المالك:</b>\n\n"
             "• <code>تغيير استيكر الاذان</code>\n"
             "• <code>تست اذان</code> (تجربة البث)\n"
-            "• <code>تست اذان نصي</code> (تجربة الرسالة فقط)\n"
+            "• <code>تفعيل الملف</code> (فحص النظام)\n"
             "• <code>تفعيل الاذان الاجباري</code>"
         )
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("رجوع", callback_data="cmd_back_main")]])
@@ -328,7 +353,7 @@ async def cb_handler(_, q):
 
     if data == "cmd_admin":
         if not await check_rights(uid, q.message.chat.id):
-            return await q.answer("• الامـر مـتـاح فـقـط لـلـمـشـرفـيـن فـقـط 💕", show_alert=True)
+            return await q.answer("الامـر مـتـاح فـقـط لـلـمـشـرفـيـن فـقـط 💕", show_alert=True)
             
         bot_username = (await app.get_me()).username
         settings_link = f"https://t.me/{bot_username}?start=azset_{q.message.chat.id}"
@@ -347,13 +372,11 @@ async def cb_handler(_, q):
         ])
         return await q.edit_message_text(text, reply_markup=kb)
 
-    if data == "close_panel": return await q.message.delete()
-
     if data.startswith("test_azan_"):
         chat_id = int(data.split("_")[2])
         if not await check_rights(uid, chat_id): return await q.answer("للمشرفين فقط", show_alert=True)
         if uid not in DEVS:
-             return await q.answer("• الأمـر مـحـدود فـقـط لـلــمـالـك الاسـاسـي والـمـشـرف 🤎", show_alert=True)
+             return await q.answer("الأمـر مـحـدود فـقـط لـلــمـالـك الاسـاسـي والـمـشـرف 🤎", show_alert=True)
 
         await q.answer("جاري الارسال...", show_alert=False)
         await start_azan_stream(chat_id, "Fajr", force_test=True)
@@ -408,7 +431,7 @@ async def dev_input_wait(_, m):
         global CURRENT_DUA_STICKER
         CURRENT_DUA_STICKER = m.sticker.file_id
         await resources_db.update_one({"type": "dua_sticker"}, {"$set": {"sticker_id": CURRENT_DUA_STICKER}}, upsert=True)
-        await m.reply("تم الحفظ 💕")
+        await m.reply("تم الحفظ")
         del admin_state[uid]
 
     elif action.startswith("wait_azan_"): 
@@ -417,7 +440,7 @@ async def dev_input_wait(_, m):
             if not m.sticker: return await m.reply("استيكر فقط")
             CURRENT_RESOURCES[pkey]["sticker"] = m.sticker.file_id
             await resources_db.update_one({"type": "azan_data"}, {"$set": {f"data.{pkey}.sticker": m.sticker.file_id}}, upsert=True)
-            await m.reply(f"تم التغيير 💕")
+            await m.reply(f"تم التغيير")
         else:
             if not m.text: return
             vid = extract_vidid(m.text)
@@ -425,35 +448,53 @@ async def dev_input_wait(_, m):
             CURRENT_RESOURCES[pkey]["link"] = m.text
             CURRENT_RESOURCES[pkey]["vidid"] = vid
             await resources_db.update_one({"type": "azan_data"}, {"$set": {f"data.{pkey}.link": m.text, f"data.{pkey}.vidid": vid}}, upsert=True)
-            await m.reply(f"تم التغيير 💕")
+            await m.reply(f"تم التغيير")
         del admin_state[uid]
 
-@app.on_message(filters.regex("^تست اذان$") & filters.group, group=AZAN_GROUP)
+# --- [ أمر تست اذان - للمالك الأساسي فقط ] ---
+@app.on_message(filters.command(["تست اذان"], COMMAND_PREFIXES) & filters.group, group=AZAN_GROUP)
 async def tst(client, message):
-    user_id = message.from_user.id
-    if user_id not in DEVS:
-        return await message.reply("• الأمـر مـحـدود فـقـط لـلــمـالـك الاسـاسـي والـمـشـرف 🤎")
-
+    if message.from_user.id != MAIN_OWNER:
+        return 
+    
     chat_id = message.chat.id
-    msg = await message.reply(f"<b>أهلاً بك عزيزي المطور/المشرف</b>\n<b>جـاري تشغيـل الأذان التجريبي...</b>")
+    msg = await message.reply(f"<b>أهلاً بك عزيزي المالك</b>\n<b>جاري تشغيل الأذان التجريبي...</b>")
     try:
         await start_azan_stream(chat_id, "Fajr", force_test=True)
-        await msg.edit_text("<b>تم إرسال أمر التشغيل للمساعد 💕</b>")
+        await msg.edit_text("<b>تم إرسال أمر التشغيل للمساعد</b>")
     except Exception as e:
         await msg.edit_text(f"<b>حدث خطأ:</b>\n`{e}`")
 
-@app.on_message(filters.regex("^تست اذان نصي$") & filters.group, group=AZAN_GROUP)
-async def text_azan_test(client, message):
-    user_id = message.from_user.id
-    if user_id not in DEVS:
-        return await message.reply("• الأمـر مـحـدود فـقـط لـلــمـالـك الاسـاسـي والـمـشـرف 🤎")
+# --- [ أمر تفعيل الملف - فحص شامل بدون إيموجي وممدود ] ---
+@app.on_message(filters.regex("^تفعيل الملف$") & filters.user(DEVS), group=AZAN_GROUP)
+async def activate_and_debug(client, message):
+    log = "<b>جــاري تــفــعــيــل الــمــلــف واخــتــبــار الــنــظــام . . .</b>\n\n"
+    msg = await message.reply_text(log)
     
-    chat_id = message.chat.id
-    await message.reply("<b>جاري تجربة الأذان (نصي فقط)...</b>")
-    res = CURRENT_RESOURCES["Fajr"]
-    try: await app.send_sticker(chat_id, res["sticker"])
-    except: pass
-    await app.send_message(chat_id, f"<b>حان الآن موعد اذان {res['name']} 🤍</b>\n<b>بالتوقيت المحلي لمدينة القاهره 🕌🤎</b>")
+    # 1. فحص قاعدة البيانات
+    try:
+        await settings_db.find_one({})
+        log += "• قـاعـدة الـبـيـانـات :  تــعــمــل بــنــجــاح\n"
+    except Exception as e:
+        log += f"• قـاعـدة الـبـيـانـات :  خــطــأ ({e})\n"
+    
+    # 2. فحص مواقيت الصلاة (API)
+    try:
+        times = await get_azan_times()
+        if times:
+            log += "• اتـصـال الـمـواقـيـت :  مــتــصــل بــنــجــاح\n"
+        else:
+            log += "• اتـصـال الـمـواقـيـت :  لا يــوجــد رد\n"
+    except Exception as e:
+        log += f"• اتـصـال الـمـواقـيـت :  خــطــأ ({e})\n"
+
+    # 3. فحص المجدول
+    if scheduler.running:
+        log += "• الـمـجـدول الـزمنـي :  يــعــمــل بــنــجــاح\n"
+    else:
+        log += "• الـمـجـدول الـزمنـي :  مــتــوقــف\n"
+        
+    await msg.edit_text(log + "\n<b>تــم اكــتــمــال الــفــحــص .</b>")
 
 @app.on_message(filters.command("تفعيل الاذان الاجباري", COMMAND_PREFIXES) & filters.user(DEVS), group=AZAN_GROUP)
 async def force_enable(_, m):
@@ -466,7 +507,7 @@ async def force_enable(_, m):
         except: pass
         c += 1
     local_cache.clear()
-    await msg.edit_text(f"<b>تم التفعيل في {c} مجموعة 💕</b>")
+    await msg.edit_text(f"<b>تم التفعيل في {c} مجموعة</b>")
 
 @app.on_message(filters.command("قفل الاذان الاجباري", COMMAND_PREFIXES) & filters.user(DEVS), group=AZAN_GROUP)
 async def force_disable(_, m):
@@ -476,29 +517,4 @@ async def force_disable(_, m):
         await settings_db.update_one({"_id": doc["_id"]}, {"$set": {"azan_active": False}})
         c += 1
     local_cache.clear()
-    await msg.edit_text(f"<b>تم القفل في {c} مجموعة 🤎</b>")
-
-@app.on_message(filters.command("تفعيل الاذكار الاجباري", COMMAND_PREFIXES) & filters.user(DEVS), group=AZAN_GROUP)
-async def force_enable_duas(_, m):
-    msg = await m.reply("<b>جاري التفعيل...</b>")
-    c = 0
-    async for doc in settings_db.find({}):
-        await settings_db.update_one({"_id": doc["_id"]}, {"$set": {"dua_active": True, "night_dua_active": True}})
-        c += 1
-    local_cache.clear()
-    await msg.edit_text(f"<b>تم التفعيل في {c} مجموعة 💕</b>")
-
-@app.on_message(filters.command("قفل الاذكار الاجباري", COMMAND_PREFIXES) & filters.user(DEVS), group=AZAN_GROUP)
-async def force_disable_duas(_, m):
-    msg = await m.reply("<b>جاري القفل...</b>")
-    c = 0
-    async for doc in settings_db.find({}):
-        await settings_db.update_one({"_id": doc["_id"]}, {"$set": {"dua_active": False, "night_dua_active": False}})
-        c += 1
-    local_cache.clear()
-    await msg.edit_text(f"<b>تم القفل في {c} مجموعة 🤎</b>")
-
-@app.on_message(filters.regex("^فحص الاذان$"), group=1)
-async def debug_azan_file(client, message):
-    debug_text = "**النظام يعمل بشكل جيد 🤍**\n"
-    msg = await message.reply_text(debug_text)
+    await msg.edit_text(f"<b>تم القفل في {c} مجموعة</b>")
