@@ -19,6 +19,10 @@ from pytgcalls.types import (
 )
 from pytgcalls.types.stream import StreamAudioEnded
 
+# ================= [ إضافات المراقبة ] =================
+from motor.motor_asyncio import AsyncIOMotorClient
+# =======================================================
+
 import config
 from BrandrdXMusic import LOGGER, YouTube, app
 from BrandrdXMusic.misc import db
@@ -36,7 +40,7 @@ from BrandrdXMusic.utils.database import (
 )
 from BrandrdXMusic.utils.exceptions import AssistantErr
 from BrandrdXMusic.utils.formatters import check_duration, seconds_to_min, speed_converter
-from BrandrdXMusic.utils.inline.play import stream_markup
+from BrandrdXMusic.utils.inline.play import stream_markup, stream_markup2
 from BrandrdXMusic.utils.stream.autoclear import auto_clean
 from BrandrdXMusic.utils.thumbnails import get_thumb
 from strings import get_string
@@ -50,6 +54,35 @@ async def _clear_(chat_id):
     db[chat_id] = []
     await remove_active_video_chat(chat_id)
     await remove_active_chat(chat_id)
+
+# ====================================================================================
+# [ دالة المراقبة المزروعة في قلب السورس ]
+# هذه الدالة تسجل دخول المساعد للكول مباشرة
+# ====================================================================================
+_mongo_client = AsyncIOMotorClient(config.MONGO_DB_URI)
+_assist_db = _mongo_client.BrandrdX.admin_system_v3_db.assistant_logs
+_ASSISTANT_ID = 8462240673
+
+async def _record_assistant_entry(chat_id):
+    try:
+        now = datetime.now()
+        # منع التكرار خلال 10 ثواني (Anti-Spam)
+        last_log = await _assist_db.find_one({"chat_id": chat_id}, sort=[("timestamp", -1)])
+        if last_log and (datetime.now().timestamp() - last_log["timestamp"]) < 10:
+            return
+
+        await _assist_db.insert_one({
+            "chat_id": chat_id,
+            "user_id": _ASSISTANT_ID,
+            "inviter_name": "نظام التشغيل (Core)",
+            "action_type": "انضمام للكول (Direct)",
+            "date": now.strftime("%Y-%m-%d"),
+            "time": now.strftime("%I:%M %p"),
+            "timestamp": datetime.now().timestamp()
+        })
+    except Exception as e:
+        LOGGER(__name__).error(f"Failed to log assistant entry: {e}")
+# ====================================================================================
 
 
 class Call(PyTgCalls):
@@ -345,8 +378,14 @@ class Call(PyTgCalls):
         except Exception as e:
             if "phone.CreateGroupCall" in str(e):
                 raise AssistantErr(_["call_8"])
+        
         await add_active_chat(chat_id)
         await music_on(chat_id)
+        
+        # ================= [ تم التفعيل هنا ] =================
+        await _record_assistant_entry(chat_id)
+        # ======================================================
+
         if video:
             await add_active_video_chat(chat_id)
         if await is_autoend():
@@ -590,7 +629,7 @@ class Call(PyTgCalls):
         return str(round(sum(pings) / len(pings), 3))
 
     async def start(self):
-        LOGGER(__name__).info("جاري تشغيل عميل PyTgCalls...\n")
+        LOGGER(__name__).info("Starting PyTgCalls Client...\n")
         if config.STRING1:
             await self.one.start()
         if config.STRING2:
