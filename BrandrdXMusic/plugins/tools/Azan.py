@@ -585,3 +585,43 @@ async def debug_azan_file(client, message):
         debug_text += "استدعاء الستريم: **خطأ! مسار (Import) غير صحيح لسورسك**\n"
         
     msg = await message.reply_text(debug_text)
+# ==========================================
+# [ تصحيح أمر التست - يوضع في نهاية الملف ]
+# ==========================================
+
+@app.on_message(filters.regex("^تست اذان$"), group=99)
+async def force_test_azan(client, message):
+    # 1. التأكد من صلاحيات المستخدم
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+    is_auth = user_id in DEVS
+    
+    if not is_auth:
+        try:
+            mem = await app.get_chat_member(chat_id, user_id)
+            if mem.status in [enums.ChatMemberStatus.ADMINISTRATOR, enums.ChatMemberStatus.OWNER]:
+                is_auth = True
+        except: pass
+    
+    if not is_auth:
+        return await message.reply("❌ هذا الأمر للمشرفين والمطورين فقط.")
+
+    # 2. إرسال رسالة التشخيص
+    status_msg = await message.reply("⏳ **جاري فحص النظام وتشغيل الأذان...**")
+
+    try:
+        # فحص المسار الصحيح للملف
+        from BrandrdXMusic.utils.stream.stream import stream
+        await status_msg.edit_text("✅ **تم العثور على دالة التشغيل، جاري بدء البث...**")
+        
+        # تشغيل الأذان
+        await start_azan_stream(chat_id, "Fajr")
+        
+    except ImportError:
+        await status_msg.edit_text("❌ **خطأ فادح:** لم يتم العثور على مسار `stream`.\nتأكد أن اسم المجلد الرئيسي هو `BrandrdXMusic`.")
+    except Exception as e:
+        await status_msg.edit_text(f"❌ **حدث خطأ غير متوقع:**\n`{e}`")
+
+@app.on_message(filters.command("فحص", ""), group=99)
+async def check_alive(_, m):
+    await m.reply_text("✅ **نظام الأذان يعمل والملف نشط.**")
