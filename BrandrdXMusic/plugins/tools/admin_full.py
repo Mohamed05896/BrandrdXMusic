@@ -1,7 +1,3 @@
-# ==================================================================================================
-# [ مـلـف الأوامـر الإداريـة الـشـامـل - نـظـام الـردود الـذكـي (الـنـسـخـة الـثـابـتـة) ]
-# ==================================================================================================
-
 import asyncio
 from pyrogram import Client, filters, enums
 from pyrogram.types import (
@@ -11,6 +7,10 @@ from pyrogram.types import (
 from motor.motor_asyncio import AsyncIOMotorClient
 from BrandrdXMusic import app
 from BrandrdXMusic.misc import SUDOERS
+
+# ==================================================================================================
+# [ 1 ] إعـدادات الاتـصـال وقـاعـدة الـبـيـانـات
+# ==================================================================================================
 
 try:
     from config import MONGO_DB_URI, OWNER_ID
@@ -24,15 +24,50 @@ if not MONGO_DB_URI:
 mongo_client = AsyncIOMotorClient(MONGO_DB_URI)
 database = mongo_client.BrandrdX.admin_system_v3_db
 
+# الجداول
 ranks_collection = database.ranks              
-settings_collection = database.settings        
 replies_collection = database.replies          
-ban_list_collection = database.ban_list        
+stats_collection = database.stats  # جدول الإحصائيات الجديد
 
+# ذاكرة مؤقتة لعملية إضافة الرد
 reply_state = {}
 
 # ==================================================================================================
-# [ 1 ] نـظـام الـصـلاحـيـات
+# [ 2 ] العدادات (حساب الرسائل والتعديلات)
+# ==================================================================================================
+
+# دالة لحساب الرسائل
+@app.on_message(filters.group & ~filters.service & ~filters.bot, group=1)
+async def messages_counter(client, message):
+    try:
+        await stats_collection.update_one(
+            {"chat_id": message.chat.id, "user_id": message.from_user.id},
+            {"$inc": {"msgs": 1}},
+            upsert=True
+        )
+    except: pass
+
+# دالة لحساب التعديلات
+@app.on_edited_message(filters.group & ~filters.service & ~filters.bot, group=1)
+async def edits_counter(client, message):
+    try:
+        await stats_collection.update_one(
+            {"chat_id": message.chat.id, "user_id": message.from_user.id},
+            {"$inc": {"edits": 1}},
+            upsert=True
+        )
+    except: pass
+
+async def get_user_stats(chat_id, user_id):
+    try:
+        doc = await stats_collection.find_one({"chat_id": chat_id, "user_id": user_id})
+        if doc:
+            return doc.get("msgs", 0), doc.get("edits", 0)
+        return 0, 0
+    except: return 0, 0
+
+# ==================================================================================================
+# [ 3 ] نـظـام الـصـلاحـيـات والـرتـب
 # ==================================================================================================
 
 RANK_POWER_LEVELS = {
@@ -47,7 +82,7 @@ RANK_POWER_LEVELS = {
 
 async def get_user_rank_name(chat_id: int, user_id: int) -> str:
     try:
-        if user_id in SUDOERS or user_id == OWNER_ID: return "مطور"
+        if user_id == OWNER_ID or user_id in SUDOERS: return "مطور"
         user_doc = await ranks_collection.find_one({"chat_id": chat_id, "user_id": user_id})
         return user_doc.get("rank", "عضو") if user_doc else "عضو"
     except: return "عضو"
@@ -66,7 +101,7 @@ async def set_user_rank_in_db(chat_id: int, user_id: int, rank_title: str):
     except: pass
 
 async def check_user_permission(chat_id: int, user_id: int, required_power: int) -> bool:
-    if user_id in SUDOERS or user_id == OWNER_ID: return True
+    if user_id == OWNER_ID or user_id in SUDOERS: return True
     current_rank = await get_user_rank_name(chat_id, user_id)
     return RANK_POWER_LEVELS.get(current_rank, 0) >= required_power
 
@@ -82,7 +117,7 @@ async def get_target_member(message: Message):
     return None
 
 # ==================================================================================================
-# [ 2 ] مـعـالـج الـرتـب
+# [ 4 ] أوامـر الـرفـع والـتـنـزيـل
 # ==================================================================================================
 
 RANK_COMMANDS_MAP = {
@@ -102,6 +137,7 @@ async def rank_logic(client: Client, message: Message):
         chat_id = message.chat.id
         user_id = message.from_user.id
         
+        # كشف الرتب
         if text == "كشف الرتب":
             if not await check_user_permission(chat_id, user_id, 50): return 
             msg = "<b>✨ كـشـف الـرتـب فـي الـمـجـمـوعـة 🧚 :</b>\n\n"
@@ -117,9 +153,11 @@ async def rank_logic(client: Client, message: Message):
             await message.reply_text(msg)
             return
 
+        # الرفع والتنزيل
         if text in RANK_COMMANDS_MAP:
             target_rank = RANK_COMMANDS_MAP[text]
             req_power = RANK_POWER_LEVELS.get(target_rank, 0) + 10
+            
             if not await check_user_permission(chat_id, user_id, req_power):
                 return await message.reply_text("🤎 ¦ رتـبـتـك لا تـسـمـح بـذلـك.")
             
@@ -128,6 +166,7 @@ async def rank_logic(client: Client, message: Message):
             
             await set_user_rank_in_db(chat_id, target.id, target_rank)
             
+            # محاولة ترقية العضو في تليجرام
             if text == "رفع مالك":
                 try:
                     await client.promote_chat_member(
@@ -138,6 +177,7 @@ async def rank_logic(client: Client, message: Message):
                             can_pin_messages=True, can_manage_video_chats=True
                         )
                     )
+                    await client.set_administrator_title(chat_id, target.id, "مـالـك 🧚")
                 except: pass
             
             verb = "تـنـزيـل" if target_rank == "عضو" else "رفـع"
@@ -146,21 +186,32 @@ async def rank_logic(client: Client, message: Message):
     except: pass
 
 # ==================================================================================================
-# [ 3 ] الـمـسـح الـشـامـل والعقوبات
+# [ 5 ] أوامـر الـمـسـح والـعـقـوبـات
 # ==================================================================================================
 
 @app.on_message(filters.regex(r"^مسح (.*)") & filters.group)
 async def wipe_logic(client: Client, message: Message):
     try:
+        if not message.matches: return
         target = message.matches[0].group(1).strip()
         cid = message.chat.id
+        
         if target.isdigit(): return
+        
         if not await check_user_permission(cid, message.from_user.id, 80):
             return await message.reply_text("🤎 ¦ لـلـمـنـشـئـيـن الأسـاسـيـيـن.")
         
         if target == "الردود":
              await replies_collection.delete_many({"chat_id": cid})
              return await message.reply_text("🧚 ¦ تـم حـذف الـردود.")
+        
+        elif target == "المحظورين":
+            c = 0
+            async for m in message.chat.get_members(filter=enums.ChatMembersFilter.BANNED):
+                try: await message.chat.unban_member(m.user.id); c+=1
+                except: pass
+            return await message.reply_text(f"🤍 ¦ تـم مـسـح {c} مـن الـحـظـر.")
+
     except: pass
 
 @app.on_message(filters.command(["حظر", "طرد", "الغاء حظر"], "") & filters.group)
@@ -171,16 +222,23 @@ async def actions_logic(client: Client, message: Message):
         if not target: return await message.reply_text("🥀 ¦ بـالـرد او الـمـعـرف.")
         
         cmd = message.command[0]
-        if cmd == "حظر":
-            await message.chat.ban_member(target.id)
-            await message.reply_text(f"🥀 ¦ تـم حـظـر {target.mention}.")
-        elif cmd == "الغاء حظر":
-            await message.chat.unban_member(target.id)
-            await message.reply_text(f"♥️ ¦ تـم الـغـاء الـحـظـر.")
+        try:
+            if cmd == "حظر":
+                await message.chat.ban_member(target.id)
+                await message.reply_text(f"🥀 ¦ تـم حـظـر {target.mention}.")
+            elif cmd == "الغاء حظر":
+                await message.chat.unban_member(target.id)
+                await message.reply_text(f"♥️ ¦ تـم الـغـاء الـحـظـر.")
+            elif cmd == "طرد":
+                await message.chat.ban_member(target.id)
+                await message.chat.unban_member(target.id)
+                await message.reply_text(f"🥀 ¦ تـم طـرد {target.mention}.")
+        except Exception:
+            await message.reply_text("🚫 ¦ ليس لدي صلاحية على هذا العضو.")
     except: pass
 
 # ==================================================================================================
-# [ 4 ] نـظـام الـردود الـتـفـاعـلـي (الكود المصحح)
+# [ 6 ] نـظـام الـردود الـتـفـاعـلـي
 # ==================================================================================================
 
 @app.on_message(filters.command("اضف رد", "") & filters.group)
@@ -231,7 +289,7 @@ async def reply_scope_callback(client: Client, cb: CallbackQuery):
             await cb.message.delete()
             return
 
-        save_chat_id = 0 
+        save_chat_id = 0
         scope_text = "( عـام لـكـل الـجـروبـات )"
 
         if data == "reply_scope_local":
@@ -249,29 +307,23 @@ async def reply_scope_callback(client: Client, cb: CallbackQuery):
         )
     except: pass
 
-# [تم التعديل] دمج المرحلتين في دالة واحدة لمنع التداخل
 @app.on_message((filters.text | filters.media) & filters.group, group=50)
 async def unified_reply_processor(client: Client, message: Message):
     try:
         user_id = message.from_user.id
         chat_id = message.chat.id
         
-        # إذا لم يكن لديه حالة نشطة، تجاهل
         if user_id not in reply_state: return
         state = reply_state[user_id]
-        
-        # التأكد من أنه في نفس الجروب
         if state["origin_chat"] != chat_id: return
 
-        # --- المرحلة 1: استلام الكلمة ---
+        # المرحلة 1: استلام الكلمة
         if state["step"] == "wait_keyword":
-            # التحقق أن الرسالة نص فقط
             if not message.text: 
-                return await message.reply_text("يجب أن تكون الكلمة نصاً.")
+                return await message.reply_text("⚠️ يجب أن تكون الكلمة نصاً.")
                 
             keyword = message.text.strip()
             
-            # تحديث الحالة للمرحلة القادمة
             reply_state[user_id]["step"] = "wait_response"
             reply_state[user_id]["keyword"] = keyword
             
@@ -287,9 +339,9 @@ async def unified_reply_processor(client: Client, message: Message):
                 f"**{{التعديل}} ↬ عدد التعديلات**"
             )
             await message.reply_text(text_menu)
-            return  # توقف هنا، لا تكمل للكود بالأسفل
+            return
 
-        # --- المرحلة 2: استلام الجواب ---
+        # المرحلة 2: استلام الجواب
         elif state["step"] == "wait_response":
             keyword = state["keyword"]
             save_chat_id = state["chat_id"]
@@ -304,7 +356,8 @@ async def unified_reply_processor(client: Client, message: Message):
             elif message.animation: reply_type = "animation"; file_id = message.animation.file_id
             elif message.audio: reply_type = "audio"; file_id = message.audio.file_id
             elif message.voice: reply_type = "voice"; file_id = message.voice.file_id
-            
+            elif message.document: reply_type = "document"; file_id = message.document.file_id
+
             await replies_collection.update_one(
                 {"chat_id": save_chat_id, "keyword": keyword},
                 {"$set": {
@@ -316,9 +369,7 @@ async def unified_reply_processor(client: Client, message: Message):
                 upsert=True
             )
             
-            # إنهاء العملية
             del reply_state[user_id]
-            
             scope_text = "عـام" if save_chat_id == 0 else "للمجمـوعـة"
             await message.reply_text(f"**✨ ¦ تـم إضـافـة الـرد ({scope_text}) بـنـجـاح : {keyword}**")
             
@@ -337,7 +388,6 @@ async def delete_reply_handler(client: Client, message: Message):
         keyword = message.text.split(None, 1)[1].strip()
 
         del_count = 0
-        
         res1 = await replies_collection.delete_one({"chat_id": chat_id, "keyword": keyword})
         del_count += res1.deleted_count
         
@@ -350,7 +400,7 @@ async def delete_reply_handler(client: Client, message: Message):
     except: pass
 
 # ==================================================================================================
-# [ 5 ] مـحـرك الـردود
+# [ 7 ] مـحـرك الـردود (تشغيل الرد + الإحصائيات)
 # ==================================================================================================
 
 @app.on_message(filters.text & filters.group, group=100)
@@ -374,12 +424,15 @@ async def reply_engine(client: Client, message: Message):
             final_text = raw_text
             if final_text:
                 rank_name = await get_user_rank_name(chat_id, user.id)
+                # جلب الإحصائيات الحقيقية
+                msgs, edits = await get_user_stats(chat_id, user.id)
+                
                 final_text = final_text.replace("{اليوزر}", f"@{user.username}" if user.username else "لا يوجد")
                 final_text = final_text.replace("{الاسم}", user.first_name or "")
                 final_text = final_text.replace("{الايدي}", str(user.id))
                 final_text = final_text.replace("{الرتبه}", rank_name)
-                final_text = final_text.replace("{الرسائل}", "غير متاح") 
-                final_text = final_text.replace("{التعديل}", "0") 
+                final_text = final_text.replace("{الرسائل}", str(msgs)) 
+                final_text = final_text.replace("{التعديل}", str(edits)) 
 
             if r_type == "text": await message.reply_text(final_text)
             elif r_type == "photo": await message.reply_photo(r_file, caption=final_text)
@@ -388,5 +441,6 @@ async def reply_engine(client: Client, message: Message):
             elif r_type == "animation": await message.reply_animation(r_file, caption=final_text)
             elif r_type == "audio": await message.reply_audio(r_file, caption=final_text)
             elif r_type == "voice": await message.reply_voice(r_file, caption=final_text)
+            elif r_type == "document": await message.reply_document(r_file, caption=final_text)
             
     except: pass
