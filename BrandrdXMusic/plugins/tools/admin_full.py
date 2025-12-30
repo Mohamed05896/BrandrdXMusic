@@ -1,5 +1,4 @@
 import asyncio
-from datetime import datetime
 from pyrogram import Client, filters, enums
 from pyrogram.types import (
     ChatPermissions, ChatPrivileges, Message, 
@@ -29,35 +28,11 @@ database = mongo_client.BrandrdX.admin_system_v3_db
 ranks_collection = database.ranks              
 replies_collection = database.replies          
 stats_collection = database.stats  
-assistant_logs = database.assistant_logs 
 
 reply_state = {}
 
 # ==================================================================================================
-# [ 2 ] محاولة جلب آيدي المساعد تلقائياً
-# ==================================================================================================
-
-ASSISTANT_ID = 0
-
-async def get_assistant_id():
-    global ASSISTANT_ID
-    if ASSISTANT_ID != 0: return ASSISTANT_ID
-    
-    try:
-        from BrandrdXMusic.core.userbot import Userbot
-        if hasattr(Userbot, 'one'):
-            me = await Userbot.one.get_me()
-            ASSISTANT_ID = me.id
-        elif hasattr(Userbot, 'clients') and Userbot.clients:
-            me = await Userbot.clients[0].get_me()
-            ASSISTANT_ID = me.id
-    except:
-        pass
-    
-    return ASSISTANT_ID
-
-# ==================================================================================================
-# [ 3 ] العدادات (حساب الرسائل والتعديلات)
+# [ 2 ] العدادات (حساب الرسائل والتعديلات)
 # ==================================================================================================
 
 @app.on_message(filters.group & ~filters.service & ~filters.bot, group=1)
@@ -88,7 +63,7 @@ async def get_user_stats(chat_id, user_id):
     except: return 0, 0
 
 # ==================================================================================================
-# [ 4 ] نـظـام الـصـلاحـيـات والـرتـب
+# [ 3 ] نـظـام الـصـلاحـيـات والـرتـب
 # ==================================================================================================
 
 RANK_POWER_LEVELS = {
@@ -138,7 +113,7 @@ async def get_target_member(message: Message):
     return None
 
 # ==================================================================================================
-# [ 5 ] أوامـر الـرتـب والـمـسـح والـعـقـوبـات
+# [ 4 ] أوامـر الـرتـب والـمـسـح والـعـقـوبـات
 # ==================================================================================================
 
 RANK_COMMANDS_MAP = {
@@ -245,11 +220,11 @@ async def actions_logic(client: Client, message: Message):
                 await message.chat.unban_member(target.id)
                 await message.reply_text(f"🧚 ¦ تـم طـرد {target.mention}.")
         except Exception:
-            await message.reply_text("🚫 ¦ ليس لدي صلاحية على هذا العضو.")
+            await message.reply_text("🧚 ¦ ليس لدي صلاحية على هذا العضو.")
     except: pass
 
 # ==================================================================================================
-# [ 6 ] نـظـام الـردود الـشـامـل (نص، صورة، فيديو، استيكر، صوت)
+# [ 5 ] نـظـام الـردود الـشـامـل (نص، صورة، فيديو، استيكر، صوت)
 # ==================================================================================================
 
 @app.on_message(filters.command("اضف رد", "") & filters.group)
@@ -389,65 +364,7 @@ async def delete_reply_handler(client: Client, message: Message):
     except: pass
 
 # ==================================================================================================
-# [ 7 ] سـجـل دخـول الـمـسـاعـد
-# ==================================================================================================
-
-@app.on_message(filters.video_chat_members_invited & filters.group, group=20)
-async def track_assistant_join(client, message):
-    try:
-        ass_id = await get_assistant_id()
-        if not ass_id: return 
-
-        invited_users = message.video_chat_members_invited.users
-        is_invited = False
-        for user in invited_users:
-            if user.id == ass_id:
-                is_invited = True
-                break
-        
-        if is_invited:
-            chat_id = message.chat.id
-            inviter = message.from_user
-            now = datetime.now()
-            
-            await assistant_logs.insert_one({
-                "chat_id": chat_id,
-                "user_id": ass_id,
-                "inviter_id": inviter.id,
-                "date": now.strftime("%Y-%m-%d"),
-                "time": now.strftime("%I:%M %p"),
-                "reason": f"دعوة للمكالمة بواسطة {inviter.first_name}",
-                "timestamp": now.timestamp()
-            })
-    except: pass
-
-@app.on_message(filters.command("دخل المساعد كام مره", "") & filters.group)
-async def check_assistant_logs(client, message):
-    try:
-        if not await check_user_permission(message.chat.id, message.from_user.id, 50):
-            return await message.reply_text("🧚 ¦ هـذا الأمـر لـلادارة فـقـط.")
-
-        count = await assistant_logs.count_documents({"chat_id": message.chat.id})
-        if count == 0:
-            return await message.reply_text("🤎 ¦ لـم يـدخـل الـمـسـاعـد الـمـكـالـمـة مـن قـبـل.")
-
-        cursor = assistant_logs.find({"chat_id": message.chat.id}).sort("timestamp", -1).limit(10)
-        
-        msg = f"<b>🧚 ¦ سـجـل دخـول الـمـسـاعـد للـمـكـالـمـة :</b>\n"
-        msg += f"<b>💕 ¦ إجـمـالـي الـمـرات : {count} مـرة</b>\n"
-        msg += "ـــــــــــــــــــــــــــــــــــــــــــــــــــــــ\n\n"
-        
-        i = 1
-        async for doc in cursor:
-            msg += f"<b>{i}) 📅 {doc['date']} | ⏰ {doc['time']}</b>\n"
-            msg += f"   └ <i>{doc['reason']}</i>\n\n"
-            i += 1
-            
-        await message.reply_text(msg)
-    except: await message.reply_text("حدث خطأ في جلب السجل.")
-
-# ==================================================================================================
-# [ 8 ] مـحـرك الـردود (Reply Engine)
+# [ 6 ] مـحـرك الـردود (Reply Engine)
 # ==================================================================================================
 
 @app.on_message(filters.text & filters.group, group=100)
