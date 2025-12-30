@@ -1,5 +1,5 @@
 # ==================================================================================================
-# [ مـلـف الأوامـر الإداريـة الـشـامـل - نـظـام الـردود الـذكـي (بـالـخـيـارات) ]
+# [ مـلـف الأوامـر الإداريـة الـشـامـل - نـظـام الـردود الـذكـي (الـنـسـخـة الـثـابـتـة) ]
 # ==================================================================================================
 
 import asyncio
@@ -12,7 +12,6 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from BrandrdXMusic import app
 from BrandrdXMusic.misc import SUDOERS
 
-# محاولة استيراد المتغيرات
 try:
     from config import MONGO_DB_URI, OWNER_ID
 except ImportError:
@@ -25,13 +24,11 @@ if not MONGO_DB_URI:
 mongo_client = AsyncIOMotorClient(MONGO_DB_URI)
 database = mongo_client.BrandrdX.admin_system_v3_db
 
-# تـعـريـف الـجـداول
 ranks_collection = database.ranks              
 settings_collection = database.settings        
 replies_collection = database.replies          
 ban_list_collection = database.ban_list        
 
-# ذاكرة مؤقتة لتخزين خطوات إضافة الرد
 reply_state = {}
 
 # ==================================================================================================
@@ -182,9 +179,8 @@ async def actions_logic(client: Client, message: Message):
             await message.reply_text(f"♥️ ¦ تـم الـغـاء الـحـظـر.")
     except: pass
 
-
 # ==================================================================================================
-# [ 4 ] نـظـام الـردود الـتـفـاعـلـي (الـمـوحد للمـالـك والـخـاص للمـشـرف)
+# [ 4 ] نـظـام الـردود الـتـفـاعـلـي (الكود المصحح)
 # ==================================================================================================
 
 @app.on_message(filters.command("اضف رد", "") & filters.group)
@@ -193,12 +189,9 @@ async def start_add_reply(client: Client, message: Message):
         chat_id = message.chat.id
         user_id = message.from_user.id
 
-        # 1. التحقق من الصلاحية (مشرف على الأقل)
         if not await check_user_permission(chat_id, user_id, 50):
             return await message.reply_text("🤎 ¦ هـذا الأمـر لـلادارة فـقـط.")
 
-        # 2. تحديد المسار
-        # اذا كان المالك او المطور -> يظهر كيبورد الاختيار
         if user_id == OWNER_ID or user_id in SUDOERS:
             kb = InlineKeyboardMarkup([
                 [
@@ -214,10 +207,9 @@ async def start_add_reply(client: Client, message: Message):
                 reply_markup=kb
             )
         else:
-            # اذا كان مشرف عادي -> مباشرة في الجروب
             reply_state[user_id] = {
                 "step": "wait_keyword",
-                "chat_id": chat_id, # محلي
+                "chat_id": chat_id, 
                 "origin_chat": chat_id
             }
             await message.reply_text("**• حـلـو ، الـحـين ارسـل الـكلـمـة اللي تريـدهـا**")
@@ -225,7 +217,6 @@ async def start_add_reply(client: Client, message: Message):
     except Exception as e:
         print(e)
 
-# معالج ضغطات الكيبورد للمالك
 @app.on_callback_query(filters.regex(r"^reply_(scope_global|scope_local|close)"))
 async def reply_scope_callback(client: Client, cb: CallbackQuery):
     try:
@@ -240,14 +231,13 @@ async def reply_scope_callback(client: Client, cb: CallbackQuery):
             await cb.message.delete()
             return
 
-        save_chat_id = 0 # افتراضي عام
+        save_chat_id = 0 
         scope_text = "( عـام لـكـل الـجـروبـات )"
 
         if data == "reply_scope_local":
             save_chat_id = chat_id
             scope_text = "( لـهـذا الـجـروب فـقـط )"
 
-        # حفظ الحالة وانتظار الكلمة
         reply_state[user_id] = {
             "step": "wait_keyword",
             "chat_id": save_chat_id,
@@ -257,23 +247,31 @@ async def reply_scope_callback(client: Client, cb: CallbackQuery):
         await cb.message.edit_text(
             f"**• حـلـو ، الـحـين ارسـل الـكلـمـة اللي تريـدهـا**\n**{scope_text}**"
         )
-
     except: pass
 
-@app.on_message(filters.text & filters.group, group=50)
-async def interactive_reply_handler(client: Client, message: Message):
+# [تم التعديل] دمج المرحلتين في دالة واحدة لمنع التداخل
+@app.on_message((filters.text | filters.media) & filters.group, group=50)
+async def unified_reply_processor(client: Client, message: Message):
     try:
         user_id = message.from_user.id
         chat_id = message.chat.id
         
+        # إذا لم يكن لديه حالة نشطة، تجاهل
         if user_id not in reply_state: return
         state = reply_state[user_id]
+        
+        # التأكد من أنه في نفس الجروب
         if state["origin_chat"] != chat_id: return
 
-        # --- الخطوة 1: استلام الكلمة ---
+        # --- المرحلة 1: استلام الكلمة ---
         if state["step"] == "wait_keyword":
+            # التحقق أن الرسالة نص فقط
+            if not message.text: 
+                return await message.reply_text("يجب أن تكون الكلمة نصاً.")
+                
             keyword = message.text.strip()
             
+            # تحديث الحالة للمرحلة القادمة
             reply_state[user_id]["step"] = "wait_response"
             reply_state[user_id]["keyword"] = keyword
             
@@ -289,21 +287,10 @@ async def interactive_reply_handler(client: Client, message: Message):
                 f"**{{التعديل}} ↬ عدد التعديلات**"
             )
             await message.reply_text(text_menu)
-            return
+            return  # توقف هنا، لا تكمل للكود بالأسفل
 
-    except: pass
-
-@app.on_message((filters.text | filters.media) & filters.group, group=51)
-async def interactive_response_saver(client: Client, message: Message):
-    try:
-        user_id = message.from_user.id
-        if user_id not in reply_state: return
-        
-        state = reply_state[user_id]
-        if state["origin_chat"] != message.chat.id: return
-        
-        # --- الخطوة 2: استلام الجواب وحفظه ---
-        if state["step"] == "wait_response":
+        # --- المرحلة 2: استلام الجواب ---
+        elif state["step"] == "wait_response":
             keyword = state["keyword"]
             save_chat_id = state["chat_id"]
             
@@ -329,6 +316,7 @@ async def interactive_response_saver(client: Client, message: Message):
                 upsert=True
             )
             
+            # إنهاء العملية
             del reply_state[user_id]
             
             scope_text = "عـام" if save_chat_id == 0 else "للمجمـوعـة"
@@ -350,16 +338,14 @@ async def delete_reply_handler(client: Client, message: Message):
 
         del_count = 0
         
-        # مسح من الخاص
         res1 = await replies_collection.delete_one({"chat_id": chat_id, "keyword": keyword})
         del_count += res1.deleted_count
         
-        # مسح من العام (للمالك فقط)
         if user_id == OWNER_ID or user_id in SUDOERS:
             res2 = await replies_collection.delete_one({"chat_id": 0, "keyword": keyword})
             del_count += res2.deleted_count
 
-        if del_count > 0: await message.reply_text(f"🧚 ¦ تـم مـسـح الـرد : {keyword}")
+        if del_count > 0: await message.reply_text(f"🗑 ¦ تـم مـسـح الـرد : {keyword}")
         else: await message.reply_text("🥀 ¦ الـرد غـيـر مـوجـود.")
     except: pass
 
@@ -376,10 +362,7 @@ async def reply_engine(client: Client, message: Message):
         text = message.text.strip()
         user = message.from_user
         
-        # 1. البحث في ردود المجموعة (خاص)
         reply_data = await replies_collection.find_one({"chat_id": chat_id, "keyword": text})
-        
-        # 2. إذا لم يوجد، البحث في الردود العامة (عام)
         if not reply_data:
             reply_data = await replies_collection.find_one({"chat_id": 0, "keyword": text})
             
@@ -388,11 +371,9 @@ async def reply_engine(client: Client, message: Message):
             r_file = reply_data.get("file_id")
             raw_text = reply_data.get("text", "")
             
-            # استبدال المتغيرات (Tags)
             final_text = raw_text
             if final_text:
                 rank_name = await get_user_rank_name(chat_id, user.id)
-                
                 final_text = final_text.replace("{اليوزر}", f"@{user.username}" if user.username else "لا يوجد")
                 final_text = final_text.replace("{الاسم}", user.first_name or "")
                 final_text = final_text.replace("{الايدي}", str(user.id))
