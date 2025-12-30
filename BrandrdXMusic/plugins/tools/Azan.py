@@ -3,6 +3,7 @@ import random
 import aiohttp
 import re
 import time
+import os
 from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pyrogram import filters, enums
@@ -10,22 +11,20 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, 
 from motor.motor_asyncio import AsyncIOMotorClient
 
 import config
-from config import BANNED_USERS, COMMAND_PREFIXES, MONGO_DB_URI, OWNER_ID
+from config import BANNED_USERS, COMMAND_PREFIXES, MONGO_DB_URI
 from BrandrdXMusic import app
 from BrandrdXMusic.utils.stream.stream import stream
 
-# --- [ معالجة معرف المطور وإضافة المطور الثاني ] ---
-if isinstance(OWNER_ID, list):
-    DEVS = [int(x) for x in OWNER_ID]
-    MAIN_OWNER = DEVS[0] if DEVS else 0
-elif isinstance(OWNER_ID, int):
-    DEVS = [OWNER_ID]
-    MAIN_OWNER = OWNER_ID
-else:
-    DEVS = []
-    MAIN_OWNER = 0
+# --- [ إعداد المالك من متغيرات البيئة (Secrets) ] ---
+try:
+    MAIN_OWNER = int(os.getenv("OWNER_ID"))
+except:
+    from config import OWNER_ID
+    if isinstance(OWNER_ID, list): MAIN_OWNER = OWNER_ID[0]
+    elif isinstance(OWNER_ID, int): MAIN_OWNER = OWNER_ID
+    else: MAIN_OWNER = 0
 
-# >> إضافة المطور الثاني يدوياً هنا <<
+DEVS = [MAIN_OWNER]
 SECOND_DEV_ID = 8462240673
 if SECOND_DEV_ID not in DEVS:
     DEVS.append(SECOND_DEV_ID)
@@ -40,7 +39,7 @@ local_cache = {}
 admin_state = {}
 AZAN_GROUP = 57
 
-# --- [ الأدعية والبيانات الكاملة ] ---
+# --- [ الأدعية والبيانات ] ---
 MORNING_DUAS = [
     "اللهم بك أصبحنا، وبك أمسينا، وبك نحيا، وبك نموت، وإليك النشور",
     "أصبحنا وأصبح الملك لله، والحمد لله، لا إله إلا الله وحده لا شريك له",
@@ -83,6 +82,7 @@ DEFAULT_RESOURCES = {
 CURRENT_RESOURCES = DEFAULT_RESOURCES.copy()
 CURRENT_DUA_STICKER = None
 PRAYER_NAMES_AR = {"Fajr": "الفجر", "Dhuhr": "الظهر", "Asr": "العصر", "Maghrib": "المغرب", "Isha": "العشاء"}
+PRAYER_NAMES_REV = {v: k for k, v in PRAYER_NAMES_AR.items()}
 
 # --- [ دوال المساعدة والنظام ] ---
 
@@ -169,10 +169,17 @@ async def start_azan_stream(chat_id, prayer_key, force_test=False):
     
     try:
         mystic = await app.send_message(chat_id, caption)
-        await stream(_, mystic, app.id, fake_result, chat_id, "خدمة الأذان", chat_id, video=False, streamtype="youtube", forceplay=True)
+        try:
+            await stream(_, mystic, app.id, fake_result, chat_id, "خدمة الأذان", chat_id, video=False, streamtype="youtube", forceplay=True)
+        except Exception as e:
+            if "CLOSE_BUTTON" in str(e) or "EditMessage" in str(e):
+                return
+            if force_test:
+                await app.send_message(chat_id, f"خطأ غير متوقع في الستريم: {e}")
+            
     except Exception as e:
         if force_test:
-            try: await app.send_message(chat_id, f"خطأ في الستريم: {e}")
+            try: await app.send_message(chat_id, f"خطأ في الارسال: {e}")
             except: pass
         return
 
@@ -218,13 +225,11 @@ async def send_duas_batch(dua_list, setting_key, title, target_chat_id=None):
         text += f"• {d} {emo}\n\n"
     text += "<b>تقبل الله منا ومنكم صالح الاعمال</b>"
     
-    # إذا كان الأمر للتجربة (تست)
     if target_chat_id:
         if CURRENT_DUA_STICKER: await app.send_sticker(target_chat_id, CURRENT_DUA_STICKER)
         await app.send_message(target_chat_id, text)
         return
 
-    # البث التلقائي للجميع
     async for entry in settings_db.find({setting_key: True}):
         try:
             c_id = entry.get("chat_id")
@@ -306,25 +311,31 @@ async def admin_disable_duas(_, m):
     await update_doc(m.chat.id, "night_dua_active", False)
     await m.reply_text("تــم قــفــل الاذكــار بــنــجــاح")
 
+# --- [ أمر تغيير رابط الاذان للمالك ] ---
+
+@app.on_message(filters.command(["تغيير رابط الاذان", "تغير رابط الاذان"], COMMAND_PREFIXES) & filters.user(DEVS), group=AZAN_GROUP)
+async def change_azan_link_cmd(client, message):
+    if message.from_user.id != MAIN_OWNER: return
+    
+    args = message.text.split()
+    if len(args) < 4:
+        return await message.reply("الرجاء تحديد الصلاة، مثال: `تغيير رابط الاذان الفجر`")
+    
+    prayer_name = args[-1]
+    prayer_key = PRAYER_NAMES_REV.get(prayer_name)
+    
+    if not prayer_key:
+        return await message.reply(f"اسم الصلاة غير صحيح. الأسماء المتاحة: {', '.join(PRAYER_NAMES_AR.values())}")
+        
+    admin_state[message.from_user.id] = {"action": "wait_azan_link", "key": prayer_key}
+    await message.reply(f"<b>الان رسـل لـي رابـط الاذان لـصـلاة {prayer_name} :</b>")
+
 # --- [ لوحة التحكم (Keyboard) والأوامر النصية ] ---
 
 @app.on_message(filters.command(["اعدادات الاذان", "انلاين الاذان", "الاذان", "أوامر الاذان", "اوامر الاذان"], COMMAND_PREFIXES) & filters.group & ~BANNED_USERS, group=AZAN_GROUP)
 async def azan_commands_panel(_, m):
-    # النص يحتوي على جميع الأوامر
-    text = (
-        "<b>مرحباً بك في قائمة أوامر الأذان</b>\n\n"
-        "<b>أوامــر الــمــشــرفــيــن :</b>\n"
-        "• <code>تفعيل الاذان</code> / <code>قفل الاذان</code>\n"
-        "• <code>تفعيل الدعاء</code> / <code>قفل الدعاء</code>\n"
-        "• <code>اعدادات الاذان</code> (لفتح هذا الكيبورد)\n\n"
-        "<b>أوامــر الــمــالــك (الــســورس) :</b>\n"
-        "• <code>تفعيل الاذان الاجباري</code> / <code>قفل الاذان الاجباري</code>\n"
-        "• <code>تفعيل الدعاء الاجباري</code> / <code>قفل الدعاء الاجباري</code>\n"
-        "• <code>ايقاف الاذان @يوزر</code>\n"
-        "• <code>تست دعاء صباح</code> / <code>تست دعاء مساء</code>\n"
-        "• <code>فحص الاذان</code>\n\n"
-        "<b>اختر القائمة المناسبة لرتبتك من الأزرار :</b>"
-    )
+    text = "<b>مرحباً بك في قائمة أوامر الأذان</b>\n<b>اختر القائمة المناسبة لرتبتك من الأزرار :</b>"
+    
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("أوامر المالك", callback_data="cmd_owner")],
         [InlineKeyboardButton("أوامر المشرفين", callback_data="cmd_admin")],
@@ -388,37 +399,48 @@ async def cb_handler(_, q):
             return await q.answer("• عـذرا هـذا الـزر لـلـمـشـرف فـقـط 🤍", show_alert=True)
         return await q.message.delete()
         
-    # --- [ زر أوامر المالك: للمالك الأساسي فقط ] ---
+    # --- [ زر أوامر المالك: عرض النص ] ---
     if data == "cmd_owner":
         if uid != MAIN_OWNER:
             return await q.answer("• عـذرا هـذا الـزر لـلـمـالـك فـقـط 🤍", show_alert=True)
         
         text = (
-            "<b>قائمة أوامر المالك :</b>\n\n"
-            "اضغط على <b>تست اذان عام</b> لبث الاذان في <b>جميع الجروبات</b> للتأكد من عمل البوت."
+            "<b>أوامــر الــمــالــك (الــســورس) :</b>\n"
+            "• <code>تفعيل الاذان الاجباري</code> / <code>قفل الاذان الاجباري</code>\n"
+            "• <code>تفعيل الدعاء الاجباري</code> / <code>قفل الدعاء الاجباري</code>\n"
+            "• <code>ايقاف الاذان @يوزر</code>\n"
+            "• <code>تست دعاء صباح</code> / <code>تست دعاء مساء</code>\n"
+            "• <code>فحص الاذان</code>\n"
+            "• <code>تغيير رابط الاذان [الصلاة]</code>\n\n"
+            "<b>لعمل تست عام للجروبات اضغط بالاسفل :</b>"
         )
-        # أزرار تحكم المالك
+        # أزرار تحكم المالك (تم إضافة زر تست الاذان هنا)
         kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("تست اذان عام (كل الجروبات)", callback_data="test_global_azan")],
+            [InlineKeyboardButton("تست الاذان (في هذا الجروب)", callback_data=f"test_azan_single_{chat_id}")],
+            [InlineKeyboardButton("تست اذان عام (داخل البوت فقط)", url=f"https://t.me/{(await app.get_me()).username}?start=test_global")],
             [InlineKeyboardButton("تغيير استيكر الاذان", callback_data="devset_sticker_Fajr")],
             [InlineKeyboardButton("رجوع", callback_data="cmd_back_main")]
         ])
         return await q.edit_message_text(text, reply_markup=kb)
 
-    # --- [ زر أوامر المشرفين: للمشرفين والمالك ] ---
+    # --- [ زر أوامر المشرفين: عرض النص (متاح للمشرفين) ] ---
     if data == "cmd_admin":
         if not await check_rights(uid, chat_id):
             return await q.answer("• عـذرا هـذا الـزر لـلـمـشـرف فـقـط 🤍", show_alert=True)
-        
-        if uid != MAIN_OWNER:
-            return await q.answer("الإعدادات متاحة للمالك الأساسي فقط", show_alert=True)
             
         bot_username = (await app.get_me()).username
         settings_link = f"https://t.me/{bot_username}?start=azset_{chat_id}"
         
-        text = "<b>اضغط على الزر للدخول لإعدادات الأذان (للمالك الأساسي فقط)</b>"
+        # تم إخفاء أمر "فحص الاذان" من القائمة النصية
+        text = (
+            "<b>أوامــر الــمــشــرفــيــن :</b>\n"
+            "• <code>تفعيل الاذان</code> / <code>قفل الاذان</code>\n"
+            "• <code>تفعيل الدعاء</code> / <code>قفل الدعاء</code>\n"
+            "• <code>تست الاذان</code> (تجربة داخل الجروب)\n\n"
+            "<b>للاعدادات المتقدمة (تشغيل صلوات محددة) اضغط الزر:</b>"
+        )
         kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("الاعدادات الانلاين", url=settings_link)],
+            [InlineKeyboardButton("الاعدادات المتقدمة (للمالك)", url=settings_link)],
             [InlineKeyboardButton("رجوع", callback_data="cmd_back_main")]
         ])
         return await q.edit_message_text(text, reply_markup=kb)
@@ -430,27 +452,12 @@ async def cb_handler(_, q):
             [InlineKeyboardButton("أوامر المشرفين", callback_data="cmd_admin")],
             [InlineKeyboardButton("اغلاق", callback_data="cmd_close")]
         ])
-        return await q.edit_message_text("<b>مرحباً بك في قائمة أوامر الأذان</b>\n\n<b>اختر القائمة المناسبة لرتبتك:</b>", reply_markup=kb)
-
-    # --- [ البث العام للتست (في جميع الجروبات) ] ---
-    if data == "test_global_azan":
-        if uid != MAIN_OWNER:
-            return await q.answer("• عـذرا هـذا الـزر لـلـمـالـك فـقـط 🤍", show_alert=True)
-        
-        await q.answer("جاري بدء البث في جميع الجروبات...", show_alert=False)
-        count = 0
-        async for doc in settings_db.find({"azan_active": True}):
-            cid = doc.get("chat_id")
-            if cid:
-                asyncio.create_task(start_azan_stream(cid, "Fajr", force_test=True))
-                count += 1
-                await asyncio.sleep(0.5) # تأخير لتجنب الفلود
-        
-        return await q.message.edit_text(f"<b>تــم إرســال أمــر الــتــســت لــجــمــيــع الــجــروبــات ({count})</b>")
+        return await q.edit_message_text("<b>مرحباً بك في قائمة أوامر الأذان</b>\n<b>اختر القائمة المناسبة لرتبتك من الأزرار :</b>", reply_markup=kb)
 
     # --- [ التست الفردي (للجروب الواحد من الانلاين) ] ---
     if data.startswith("test_azan_single_"):
         chat_id = int(data.split("_")[3])
+        # هنا نسمح للمالك بتشغيله من الزر
         if uid != MAIN_OWNER and uid not in DEVS:
              return await q.answer("للـمـالـك فـقـط", show_alert=True)
 
@@ -497,6 +504,8 @@ async def cb_handler(_, q):
         req = "استيكر" if atype == "sticker" else "رابط"
         await q.message.edit_text(f"<b>ارسل الان {req} صلاة {PRAYER_NAMES_AR[pkey]} :</b>")
 
+# --- [ معالج الادخال (روابط واستيكرات) ] ---
+
 @app.on_message((filters.text | filters.sticker) & filters.user(DEVS), group=AZAN_GROUP)
 async def dev_input_wait(_, m):
     uid = m.from_user.id
@@ -519,7 +528,7 @@ async def dev_input_wait(_, m):
             CURRENT_RESOURCES[pkey]["sticker"] = m.sticker.file_id
             await resources_db.update_one({"type": "azan_data"}, {"$set": {f"data.{pkey}.sticker": m.sticker.file_id}}, upsert=True)
             await m.reply(f"تــم الــتــغــيــيــر")
-        else:
+        elif "link" in action:
             if not m.text: return
             vid = extract_vidid(m.text)
             if not vid: return await m.reply("رابط خطأ")
@@ -531,13 +540,29 @@ async def dev_input_wait(_, m):
 
 # --- [ أوامر المالك والمطورين ] ---
 
-@app.on_message(filters.command(["تست اذان"], COMMAND_PREFIXES) & filters.user(DEVS), group=AZAN_GROUP)
-async def tst(client, message):
+@app.on_message(filters.regex("^/start test_global") & filters.private, group=AZAN_GROUP)
+async def test_global_start_trigger(_, m):
+    if m.from_user.id != MAIN_OWNER: return
+    await m.reply("<b>جاري بدء البث في جميع الجروبات...</b>")
+    count = 0
+    async for doc in settings_db.find({"azan_active": True}):
+        cid = doc.get("chat_id")
+        if cid:
+            asyncio.create_task(start_azan_stream(cid, "Fajr", force_test=True))
+            count += 1
+            await asyncio.sleep(0.5)
+    await m.reply(f"<b>تــم إرســال أمــر الــتــســت لــجــمــيــع الــجــروبــات ({count})</b>")
+
+
+@app.on_message(filters.command(["تست الاذان"], COMMAND_PREFIXES) & filters.group, group=AZAN_GROUP)
+async def tst_group_admin(client, message):
+    if not await check_rights(message.from_user.id, message.chat.id):
+        return await message.reply("هذا الأمر للمشرفين فقط")
+        
     chat_id = message.chat.id
-    msg = await message.reply(f"<b>أهلاً بك عزيزي المالك</b>\n<b>جــاري تــشــغــيــل الأذان الــتــجــريــبــي . . .</b>")
+    msg = await message.reply(f"<b>جــاري تــشــغــيــل الأذان الــتــجــريــبــي . . .</b>")
     try:
         await start_azan_stream(chat_id, "Fajr", force_test=True)
-        await msg.edit_text("<b>تــم إرســال أمــر الــتــشــغــيــل لــلــمــســاعــد</b>")
     except Exception as e:
         await msg.edit_text(f"<b>حــدث خــطــأ :</b>\n`{e}`")
 
@@ -558,8 +583,11 @@ async def tst_evening(client, message):
     await message.reply("<b>جــاري تــجــربــة أذكــار الــمــســاء . . .</b>")
     await send_duas_batch(NIGHT_DUAS, None, "أذكار المساء", target_chat_id=message.chat.id)
 
-@app.on_message(filters.command(["فحص الاذان"], COMMAND_PREFIXES) & filters.user(DEVS), group=AZAN_GROUP)
+@app.on_message(filters.command(["فحص الاذان"], COMMAND_PREFIXES) & filters.group, group=AZAN_GROUP)
 async def activate_and_debug(client, message):
+    if not await check_rights(message.from_user.id, message.chat.id):
+        return 
+        
     log = "<b>جــاري تــفــعــيــل الــمــلــف واخــتــبــار الــنــظــام . . .</b>\n\n"
     msg = await message.reply_text(log)
     
@@ -630,8 +658,6 @@ async def force_disable(_, m):
         
     local_cache.clear()
     await msg.edit_text(f"• تــم الايــقــاف لـعدد {c} مــجــمــوعــه")
-
-# --- [ تفعيل وقفل الدعاء الاجباري (للمالك) ] ---
 
 @app.on_message(filters.command("تفعيل الدعاء الاجباري", COMMAND_PREFIXES) & filters.user(DEVS), group=AZAN_GROUP)
 async def force_enable_duas(_, m):
