@@ -183,10 +183,16 @@ async def update_scheduler():
             h, m = map(int, t.split(":"))
             scheduler.add_job(broadcast_azan, "cron", hour=h, minute=m, args=[key], id=f"azan_{key}")
 
-# --- [ إعداد المجدول ] ---
+# --- [ إعداد المجدول (تم التعديل لمنع التشغيل التلقائي) ] ---
 scheduler = AsyncIOScheduler(timezone="Africa/Cairo")
-scheduler.add_job(update_scheduler, "cron", hour=0, minute=5)
-scheduler.add_job(lambda: asyncio.create_task(send_duas_batch(MORNING_DUAS, "dua_active", "أذكار الصباح")), "cron", hour=7, minute=0)
-scheduler.add_job(lambda: asyncio.create_task(send_duas_batch(NIGHT_DUAS, "night_dua_active", "أذكار المساء")), "cron", hour=20, minute=0)
-if not scheduler.running: scheduler.start()
-asyncio.get_event_loop().create_task(update_scheduler())
+
+def init_azan_scheduler():
+    try:
+        if not scheduler.running:
+            scheduler.add_job(update_scheduler, "cron", hour=0, minute=5)
+            scheduler.add_job(lambda: asyncio.create_task(send_duas_batch(MORNING_DUAS, "dua_active", "أذكار الصباح")), "cron", hour=7, minute=0)
+            scheduler.add_job(lambda: asyncio.create_task(send_duas_batch(NIGHT_DUAS, "night_dua_active", "أذكار المساء")), "cron", hour=20, minute=0)
+            scheduler.start()
+            asyncio.get_event_loop().create_task(update_scheduler())
+    except Exception as e:
+        print(f"Azan Scheduler Error: {e}")
