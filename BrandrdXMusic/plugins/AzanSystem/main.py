@@ -4,7 +4,7 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, 
 from BrandrdXMusic import app
 from config import BANNED_USERS, COMMAND_PREFIXES
 
-# استدعاء المتغيرات والدوال من الملفات السابقة (بالأسماء الجديدة)
+# استدعاء المتغيرات والدوال من الملفات السابقة (الأسماء الجديدة)
 from .az_conf import (
     MAIN_OWNER, DEVS, AZAN_GROUP, PRAYER_NAMES_AR, PRAYER_NAMES_REV, 
     local_cache, admin_state, resources_db, settings_db, 
@@ -12,8 +12,22 @@ from .az_conf import (
 )
 from .az_utils import (
     check_rights, get_chat_doc, update_doc, start_azan_stream, 
-    send_duas_batch, get_azan_times, extract_vidid, scheduler
+    send_duas_batch, get_azan_times, extract_vidid, scheduler,
+    init_azan_scheduler
 )
+
+# --- [ 🔴 أهم جزء: التشغيل التلقائي الآمن ] ---
+# هذا الكود يضمن تشغيل المجدول فقط عندما يكون البوت جاهزاً تماماً
+is_azan_system_started = False
+
+@app.on_message(group=AZAN_GROUP + 1)
+async def auto_start_azan_system_safe(_, __):
+    global is_azan_system_started
+    if not is_azan_system_started:
+        # نقوم بتشغيل المجدول هنا بدلاً من ملف utils لتجنب الانهيار
+        init_azan_scheduler()
+        is_azan_system_started = True
+
 
 # --- [ 1. أوامر المشرفين (تفعيل وقفل الاذان/الدعاء) ] ---
 
@@ -342,6 +356,10 @@ async def activate_and_debug(client, message):
         else: log += "• اتـصـال الـمـواقـيـت :  لا يــوجــد رد\n"
     except Exception as e:
         log += f"• اتـصـال الـمـواقـيـت :  خــطــأ ({e})\n"
+
+    # التأكد من تشغيل المجدول يدوياً إذا لم يكن يعمل
+    if not scheduler.running:
+        init_azan_scheduler()
 
     if scheduler.running: log += "• الـمـجـدول الـزمنـي :  يــعــمــل بــنــجــاح\n"
     else: log += "• الـمـجـدول الـزمنـي :  مــتــوقــف\n"
